@@ -1,63 +1,77 @@
 import { useEffect, useState } from 'react'
-import type { AppInfo } from '@shared/ipc'
+import { InputPanel } from './components/InputPanel'
+import { Reader } from './components/Reader'
+import { Transport } from './components/Transport'
+import { usePlayer } from './store'
 
 export function App() {
-  const [info, setInfo] = useState<AppInfo | null>(null)
-  const [pong, setPong] = useState('')
-  const [settingsCount, setSettingsCount] = useState(0)
+  const initVoices = usePlayer((s) => s.initVoices)
+  const toggle = usePlayer((s) => s.toggle)
+  const docTitle = usePlayer((s) => s.doc?.title ?? 'Lector Audio')
+  const [toast, setToast] = useState('')
 
   useEffect(() => {
-    window.api.getAppInfo().then(setInfo).catch((err: unknown) => console.error('getAppInfo', err))
-    return window.api.on('ui:open-settings', () => setSettingsCount((n) => n + 1))
+    void initVoices()
+  }, [initVoices])
+
+  useEffect(() => {
+    return window.api.on('ui:open-settings', () => {
+      setToast('Ajustes — llega en el paso 6 del brief')
+      window.setTimeout(() => setToast(''), 2600)
+    })
   }, [])
 
-  const modKey = info?.platform === 'darwin' ? '⌘' : 'Ctrl'
-
-  async function probeIpc() {
-    try {
-      const res = await window.api.ping('hola desde el renderer')
-      setPong(`${res.pong} · ${new Date(res.at).toLocaleTimeString()}`)
-    } catch (err) {
-      setPong(`error: ${String(err)}`)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      const el = e.target as HTMLElement | null
+      const typing = el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable)
+      if (e.code === 'Space' && !typing) {
+        e.preventDefault()
+        toggle()
+      }
     }
-  }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [toggle])
 
   return (
-    <main className="shell">
-      <header className="shell__bar">
-        <span className="shell__logo" aria-hidden="true">&#9654;</span>
-        <h1 className="shell__title">Lector Audio</h1>
-        <span className="shell__badge">scaffold</span>
+    <div className="app">
+      <header className="titlebar">
+        <div className="titlebar__lights">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="titlebar__title">{docTitle}</div>
+        <div className="titlebar__spacer" />
       </header>
 
-      <section className="shell__panel">
-        <p className="shell__lead">
-          Ventana base del proyecto. La interfaz real &mdash;entrada de texto, lista de
-          p&aacute;rrafos y reproductor&mdash; se construye sobre los mockups en las
-          siguientes fases del brief.
-        </p>
+      <div className="body">
+        <InputPanel />
+        <Reader />
+      </div>
 
-        <dl className="specs">
-          <div><dt>App</dt><dd>{info?.appVersion ?? '…'}</dd></div>
-          <div><dt>Electron</dt><dd>{info?.electron ?? '…'}</dd></div>
-          <div><dt>Node</dt><dd>{info?.node ?? '…'}</dd></div>
-          <div><dt>Chromium</dt><dd>{info?.chrome ?? '…'}</dd></div>
-          <div><dt>Plataforma</dt><dd>{info?.platform ?? '…'}</dd></div>
-        </dl>
+      <Transport />
 
-        <div className="probe">
-          <button type="button" className="probe__btn" onClick={probeIpc}>
-            Probar puente IPC
-          </button>
-          <output className="probe__out">{pong || 'sin respuesta todavía'}</output>
+      {toast && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            bottom: 92,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--ink)',
+            color: '#fff',
+            font: '600 12px var(--font-ui)',
+            padding: '8px 14px',
+            borderRadius: 8,
+            boxShadow: '0 4px 14px rgba(0,0,0,.25)'
+          }}
+        >
+          {toast}
         </div>
-
-        <p className="shell__note">
-          Evento <code>ui:open-settings</code> (main &rarr; renderer) recibido{' '}
-          <strong>{settingsCount}</strong> vez(ces). Act&iacute;valo con{' '}
-          <kbd>{modKey}</kbd> + <kbd>,</kbd> o desde el men&uacute; Herramientas.
-        </p>
-      </section>
-    </main>
+      )}
+    </div>
   )
 }

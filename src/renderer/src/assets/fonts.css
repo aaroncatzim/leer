@@ -1,0 +1,28 @@
+/* Subconjunto latino de Atkinson Hyperlegible y Public Sans, extraído del
+   lienzo docs/Lector Audio - Mockups.html. Cubre el español completo
+   (á é í ó ú ñ ¿ ¡ están en U+0000–00FF). Sin dependencia de red. */
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/atkinson-hyperlegible-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/atkinson-hyperlegible-700.woff2') format('woff2');
+}
+
+/* Public Sans es variable: el mismo archivo sirve 400–700. */
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('./fonts/public-sans.woff2') format('woff2');
+}

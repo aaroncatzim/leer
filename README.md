@@ -9,8 +9,10 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
   [`docs/mockups.md`](docs/mockups.md) · lienzo:
   [`docs/Lector Audio - Mockups.html`](docs/Lector%20Audio%20-%20Mockups.html)
 
-> **Estado: scaffold** (paso 1 del brief). Ventana vacía + IPC tipado.
-> Todavía sin extractores, sin TTS y sin ajustes.
+> **Estado: paso 2 del brief** — primer hito usable. Se pega texto, se divide en
+> párrafos y se escucha con la voz del sistema (offline), con resaltado del
+> párrafo y de la palabra en curso. Layout: dirección **1a** de los mockups.
+> Todavía sin extractores PDF/HTML, sin motores remotos y sin modal de ajustes.
 
 ## Stack
 
@@ -19,8 +21,10 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
 | Runtime      | Electron 44                       |
 | Build        | electron-vite 5 (Vite 7)          |
 | UI           | React 19 + TypeScript 7           |
-| Estado UI    | Zustand 5 (aún sin stores)        |
+| Estado UI    | Zustand 5                         |
+| Tests        | Vitest 5                          |
 | Empaquetado  | electron-builder 26 (NSIS / DMG)  |
+| Tipografía   | Atkinson Hyperlegible + Public Sans (subset latino local) |
 
 `electron-vite` sólo admite Vite ≤ 7, por eso Vite queda fijado en la línea 7.x
 y `@vitejs/plugin-react` en la 5.x.
@@ -59,6 +63,7 @@ Notas de instalación:
 | `npm run build`                 | Compila `main`, `preload` y `renderer` a `out/`.           |
 | `npm run preview`               | Ejecuta el build de `out/` sin empaquetar.                 |
 | `npm run typecheck`             | `tsc --noEmit` de los proyectos node y web.                |
+| `npm test`                      | Tests unitarios (Vitest).                                  |
 | `npm run pack:dir`              | Empaqueta sin instalador (`electron-builder --dir`).       |
 | `npm run dist:mac` / `dist:win` | Genera DMG / instalador NSIS.                              |
 
@@ -69,11 +74,14 @@ src/
   main/        Proceso principal (Node): ventana, ciclo de vida, IPC, CSP.
   preload/     Puente contextBridge -> window.api (única superficie IPC).
   renderer/    App React (Chromium, sin Node).
+    src/lib/         document.ts (modelo + segmentador), tts.ts (SystemTtsProvider).
+    src/store.ts     Estado del reproductor (Zustand) + bucle de reproducción.
+    src/components/   InputPanel · Reader · Transport.
+    src/assets/fonts/ Subset latino de las fuentes, sin red.
   shared/      Contrato IPC tipado, compartido por main y renderer.
 scripts/
   dev.mjs      Lanza electron-vite sin ELECTRON_RUN_AS_NODE (ver arriba).
-electron.vite.config.ts
-electron-builder.yml
+electron.vite.config.ts · electron-builder.yml · vitest.config.ts
 ```
 
 Todo el TypeScript se comprueba con dos proyectos separados
@@ -97,8 +105,10 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
 ## Roadmap (orden del brief §8)
 
 1. ✅ Scaffold Electron + Vite + React + TS, IPC tipado, ventana vacía.
-2. ⬜ Entrada de texto + motor `system` + reproductor (primer hito usable).
-   Base visual: [`docs/mockups.md`](docs/mockups.md).
+2. ✅ Entrada de texto + motor `system` + reproductor (primer hito usable).
+   Layout 1a de [`docs/mockups.md`](docs/mockups.md). Resaltado por párrafo y por
+   palabra (`onboundary`). Tests del segmentador en
+   [`src/renderer/src/lib/document.test.ts`](src/renderer/src/lib/document.test.ts).
 3. ⬜ Extractor HTML (`@mozilla/readability` en el main).
 4. ⬜ Extractor PDF sin OCR + normalizador con tests (Vitest).
 5. ⬜ OCR como fallback (`tesseract.js` en worker, progreso por IPC).
