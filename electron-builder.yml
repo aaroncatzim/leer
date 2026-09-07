@@ -1,0 +1,38 @@
+# Empaquetado (brief §3 y §8). Configurado; la firma/notarización se añade
+# cuando haya cuenta de desarrollador de Apple y certificado de Windows.
+appId: com.aaroncatzim.lectoraudio
+productName: Lector Audio
+copyright: Copyright (c) 2026
+
+directories:
+  buildResources: build
+  output: release/${version}
+
+files:
+  - out/**/*
+  - package.json
+
+# Windows: instalador NSIS.
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+# macOS: DMG para Apple Silicon e Intel.
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+# Linux queda fuera de alcance en v1 (brief §2).
