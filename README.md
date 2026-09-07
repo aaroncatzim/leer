@@ -2,8 +2,12 @@
 
 Aplicación de escritorio (Windows y macOS) que convierte texto pegado, PDF y
 HTML en audio, con motor de voces del sistema (offline, gratis) y motores de
-pago seleccionables (ElevenLabs / OpenAI TTS). Brief técnico completo en
-[`docs/brief-lector-audio.md`](docs/brief-lector-audio.md).
+pago seleccionables (ElevenLabs / OpenAI TTS).
+
+- Brief técnico: [`docs/brief-lector-audio.md`](docs/brief-lector-audio.md)
+- Mockups (3 direcciones de layout, en exploración):
+  [`docs/mockups.md`](docs/mockups.md) · lienzo:
+  [`docs/Lector Audio - Mockups.html`](docs/Lector%20Audio%20-%20Mockups.html)
 
 > **Estado: scaffold** (paso 1 del brief). Ventana vacía + IPC tipado.
 > Todavía sin extractores, sin TTS y sin ajustes.
@@ -94,6 +98,7 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
 
 1. ✅ Scaffold Electron + Vite + React + TS, IPC tipado, ventana vacía.
 2. ⬜ Entrada de texto + motor `system` + reproductor (primer hito usable).
+   Base visual: [`docs/mockups.md`](docs/mockups.md).
 3. ⬜ Extractor HTML (`@mozilla/readability` en el main).
 4. ⬜ Extractor PDF sin OCR + normalizador con tests (Vitest).
 5. ⬜ OCR como fallback (`tesseract.js` en worker, progreso por IPC).
