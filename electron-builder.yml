@@ -1,5 +1,8 @@
-# Empaquetado (brief §3 y §8). Configurado; la firma/notarización se añade
-# cuando haya cuenta de desarrollador de Apple y certificado de Windows.
+# Empaquetado (brief §3 y §8). Firma y notarización se activan solas cuando
+# están presentes las variables de entorno correspondientes (ver README):
+#   macOS   → CSC_LINK / CSC_KEY_PASSWORD (certificado) y
+#             APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID (notarizar).
+#   Windows → CSC_LINK / CSC_KEY_PASSWORD (certificado de firma).
 appId: com.aaroncatzim.lectoraudio
 productName: Lector Audio
 copyright: Copyright (c) 2026
@@ -17,6 +20,16 @@ extraResources:
   - from: resources
     to: resources
 
+# El binario nativo de canvas y el wasm de tesseract deben quedar fuera del asar.
+asar: true
+asarUnpack:
+  - '**/*.node'
+  - '**/node_modules/@napi-rs/canvas*/**'
+  - '**/node_modules/tesseract.js/**'
+  - '**/node_modules/tesseract.js-core/**'
+
+icon: build/icon.png
+
 # Windows: instalador NSIS.
 win:
   target:
@@ -29,13 +42,21 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
 
-# macOS: DMG para Apple Silicon e Intel.
+# macOS: DMG para Apple Silicon e Intel, runtime endurecido para poder notarizar.
 mac:
   category: public.app-category.productivity
   target:
     - target: dmg
       arch: [arm64, x64]
   artifactName: ${productName}-${version}-${arch}.${ext}
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # `notarize: true` hace que electron-builder notarice cuando existan las
+  # variables APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID; si no,
+  # simplemente lo omite con un aviso.
+  notarize: true
 
 dmg:
   artifactName: ${productName}-${version}-${arch}.${ext}

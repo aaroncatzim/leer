@@ -9,13 +9,14 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
   [`docs/mockups.md`](docs/mockups.md) · lienzo:
   [`docs/Lector Audio - Mockups.html`](docs/Lector%20Audio%20-%20Mockups.html)
 
-> **Estado: paso 7 del brief.** Entrada por texto pegado, **URL**, **HTML** o
-> **PDF** (con capa de texto o escaneado → OCR progresivo). Tres motores de voz:
-> **Sistema** (offline), **ElevenLabs** y **OpenAI** (las keys se guardan
-> cifradas con `safeStorage`, nunca llegan al renderer; audio en caché en
-> `userData`, contador de caracteres). **Exportar MP3** del documento completo
-> con el motor remoto. Modal de **Ajustes**. Resaltado por párrafo (y por
-> palabra en el motor local). Layout: **1a**. Falta solo: empaquetado y firma.
+> **Estado: v1 completa (pasos 1–8 del brief).** Entrada por texto pegado,
+> **URL**, **HTML** o **PDF** (con capa de texto o escaneado → OCR progresivo).
+> Tres motores de voz: **Sistema** (offline), **ElevenLabs** y **OpenAI** (keys
+> cifradas con `safeStorage`, audio en caché, contador de caracteres).
+> **Exportar MP3**, modal de **Ajustes**, resaltado por párrafo (y por palabra
+> en el motor local). Layout: dirección **1a** de los mockups. Empaquetado con
+> electron-builder (DMG probado; NSIS listo, se genera en Windows). Firma y
+> notarización listas para activarse con las variables de entorno.
 
 ## Stack
 
@@ -70,6 +71,27 @@ Notas de instalación:
 | `npm test`                      | Tests unitarios (Vitest).                                  |
 | `npm run pack:dir`              | Empaqueta sin instalador (`electron-builder --dir`).       |
 | `npm run dist:mac` / `dist:win` | Genera DMG / instalador NSIS.                              |
+
+## Empaquetado y firma (paso 8)
+
+- `npm run dist:mac` genera `release/<versión>/Lector Audio-<versión>-<arch>.dmg`
+  (arm64 e Intel). `npm run dist:win` genera el instalador NSIS `.exe` y debe
+  ejecutarse **en Windows** (o CI): NSIS necesita Windows/wine.
+- Los idiomas de OCR (`resources/tessdata`) se incluyen con `extraResources`; el
+  binario nativo de `@napi-rs/canvas` y el wasm de `tesseract.js` se sacan del
+  `asar` (`asarUnpack`). El DMG arm64 se ha probado: arranca y hace OCR de un
+  PDF escaneado.
+- **Firma / notarización** se activan solas al exportar estas variables antes de
+  `dist:*` (si faltan, electron-builder omite la firma con un aviso):
+
+  | Plataforma | Variables |
+  | ---------- | --------- |
+  | macOS — firmar | `CSC_LINK` (ruta o base64 del `.p12`), `CSC_KEY_PASSWORD` |
+  | macOS — notarizar | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` |
+  | Windows — firmar | `CSC_LINK`, `CSC_KEY_PASSWORD` |
+
+  Sin firmar: macOS pide botón derecho → «Abrir» la primera vez; Windows muestra
+  el aviso de SmartScreen (brief §8).
 
 ## Estructura
 
@@ -141,4 +163,6 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
 7. ✅ Segundo motor remoto (OpenAI, `POST /v1/audio/speech`, `gpt-4o-mini-tts` —
    verificado) + **Exportar MP3** ([`src/main/tts/exportMp3.ts`](src/main/tts/exportMp3.ts)):
    sintetiza cada párrafo (reusando caché), concatena y guarda con diálogo nativo.
-8. ⬜ Empaquetado y firma (notarización macOS, SmartScreen Windows).
+8. ✅ Empaquetado con electron-builder (`electron-builder.yml`): DMG arm64/x64,
+   NSIS x64, icono, `extraResources` de tessdata, `asarUnpack` de nativos,
+   runtime endurecido + entitlements + `notarize` condicional. DMG arm64 probado.
