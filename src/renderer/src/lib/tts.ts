@@ -23,8 +23,8 @@ export interface TtsProvider {
   readonly canExport: boolean
   listVoices(): Promise<Voice[]>
   /**
-   * Habla un fragmento (un párrafo, para el motor local). Resuelve al terminar
-   * o cuando se cancela de forma deliberada; rechaza solo ante un fallo real.
+   * Habla un fragmento (un párrafo). Resuelve al terminar o cuando se cancela
+   * de forma deliberada; rechaza solo ante un fallo real.
    */
   speak(text: string, opts: SpeakOptions): Promise<void>
   pause(): void
@@ -35,6 +35,10 @@ export interface TtsProvider {
    * caracteres dentro del texto pasado a `speak`. Devuelve la baja.
    */
   onBoundary(cb: (charIndex: number) => void): () => void
+  /** Calienta la caché del siguiente fragmento sin reproducirlo (motor remoto). */
+  prefetch?(text: string, opts: SpeakOptions): void
+  /** Notifica caracteres facturados a la API (motor remoto). Devuelve la baja. */
+  onChars?(cb: (chars: number) => void): () => void
 }
 
 export function clampRate(r: number): number {

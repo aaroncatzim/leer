@@ -9,11 +9,26 @@ import {
   type HtmlSource,
   type PdfSource,
   type PingResult,
-  type Platform
+  type Platform,
+  type RemoteProvider,
+  type SettingsPatch,
+  type SettingsView,
+  type SynthesizeRequest
 } from '../shared/ipc'
 import { extractHtml } from './extract/html'
 import { extractPdf, loadPdfBytes } from './extract/pdf'
 import { ocrPdfPages } from './ocr/pdfOcr'
+import {
+  cacheSizeBytes,
+  clearCache,
+  clearSecret,
+  encryptionAvailable,
+  readSettings,
+  secretHint,
+  setSecret,
+  writeSettings
+} from './settings'
+import { listRemoteVoices, synthesize } from './tts/remote'
 
 const isDev = !app.isPackaged
 const APP_USER_MODEL_ID = 'com.aaroncatzim.lectoraudio'
@@ -128,7 +143,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(
     IpcChannel.OcrStart,
-    async (event, source: PdfSource, pages: number[]): Promise<string> => {
+    async (event, source: PdfSource, pages: number[], lang: 'spa' | 'spa+eng'): Promise<string> => {
       const ocrId = randomUUID()
       const run: OcrRun = { signal: { cancelled: false } }
       ocrRuns.set(ocrId, run)
@@ -141,6 +156,7 @@ function registerIpcHandlers(): void {
       void ocrPdfPages({
         data,
         pages,
+        lang,
         signal: run.signal,
         registerWorker: (w) => (run.worker = w),
         onProgress: (p) => send(IpcEvent.OcrProgress, { ocrId, ...p }),
@@ -158,6 +174,37 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannel.OcrCancel, (_event, ocrId: string): void => {
     cancelOcrRun(ocrRuns.get(ocrId))
   })
+
+  // ── Motor TTS remoto + ajustes (paso 6) ──────────────────────────
+  ipcMain.handle(IpcChannel.ListRemoteVoices, (_e, provider: RemoteProvider) =>
+    listRemoteVoices(provider)
+  )
+  ipcMain.handle(IpcChannel.Synthesize, (_e, req: SynthesizeRequest) => synthesize(req))
+
+  async function settingsView(): Promise<SettingsView> {
+    const s = readSettings()
+    return {
+      chunkChars: s.chunkChars,
+      ocrLang: s.ocrLang,
+      encryptionAvailable: encryptionAvailable(),
+      cacheBytes: await cacheSizeBytes(),
+      keys: {
+        elevenlabs: { configured: secretHint('elevenlabs') !== null, hint: secretHint('elevenlabs') },
+        openai: { configured: secretHint('openai') !== null, hint: secretHint('openai') }
+      }
+    }
+  }
+
+  ipcMain.handle(IpcChannel.SettingsGet, () => settingsView())
+  ipcMain.handle(IpcChannel.SettingsSet, (_e, patch: SettingsPatch) => {
+    writeSettings(patch)
+    return settingsView()
+  })
+  ipcMain.handle(IpcChannel.SetSecret, (_e, provider: RemoteProvider, key: string) =>
+    setSecret(provider, key)
+  )
+  ipcMain.handle(IpcChannel.ClearSecret, (_e, provider: RemoteProvider) => clearSecret(provider))
+  ipcMain.handle(IpcChannel.ClearCache, () => clearCache())
 
   ipcMain.handle(IpcChannel.PickDocument, async (event): Promise<string | null> => {
     const owner = BrowserWindow.fromWebContents(event.sender)

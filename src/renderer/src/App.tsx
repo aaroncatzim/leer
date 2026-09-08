@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { InputPanel } from './components/InputPanel'
 import { Reader } from './components/Reader'
+import { Settings } from './components/Settings'
 import { Transport } from './components/Transport'
 import { usePlayer } from './store'
 
@@ -9,6 +10,9 @@ const PDF_FILE = /\.pdf$/i
 
 export function App() {
   const initVoices = usePlayer((s) => s.initVoices)
+  const syncSettings = usePlayer((s) => s.syncSettings)
+  const openSettings = usePlayer((s) => s.openSettings)
+  const settingsOpen = usePlayer((s) => s.settingsOpen)
   const toggle = usePlayer((s) => s.toggle)
   const loadHtml = usePlayer((s) => s.loadHtml)
   const loadPdf = usePlayer((s) => s.loadPdf)
@@ -18,14 +22,10 @@ export function App() {
 
   useEffect(() => {
     void initVoices()
-  }, [initVoices])
+    void syncSettings()
+  }, [initVoices, syncSettings])
 
-  useEffect(() => {
-    return window.api.on('ui:open-settings', () => {
-      setToast('Ajustes — llega en el paso 6 del brief')
-      window.setTimeout(() => setToast(''), 2600)
-    })
-  }, [])
+  useEffect(() => window.api.on('ui:open-settings', () => openSettings()), [openSettings])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
@@ -83,6 +83,8 @@ export function App() {
       </div>
 
       <Transport />
+
+      {settingsOpen && <Settings />}
 
       {dragging && (
         <div className="dropzone">

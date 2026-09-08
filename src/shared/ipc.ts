@@ -21,9 +21,52 @@ export const IpcChannel = {
   ExtractPdf: 'extract:pdf',
   PickDocument: 'dialog:pick-document',
   OcrStart: 'ocr:start',
-  OcrCancel: 'ocr:cancel'
+  OcrCancel: 'ocr:cancel',
+  ListRemoteVoices: 'tts:voices',
+  Synthesize: 'tts:synthesize',
+  SettingsGet: 'settings:get',
+  SettingsSet: 'settings:set',
+  SetSecret: 'settings:set-key',
+  ClearSecret: 'settings:clear-key',
+  ClearCache: 'settings:clear-cache'
 } as const
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel]
+
+export type RemoteProvider = 'elevenlabs' | 'openai'
+export type OcrLang = 'spa' | 'spa+eng'
+
+export interface RemoteVoice {
+  id: string
+  label: string
+  lang: string
+}
+
+export interface SynthesizeRequest {
+  provider: RemoteProvider
+  voiceId: string
+  text: string
+  speed: number
+}
+
+export interface SynthesizeResponse {
+  bytes: ArrayBuffer
+  cached: boolean
+  /** Caracteres facturados a la API en esta llamada (0 si venía de caché). */
+  chars: number
+}
+
+export interface SettingsView {
+  chunkChars: number
+  ocrLang: OcrLang
+  encryptionAvailable: boolean
+  cacheBytes: number
+  keys: Record<RemoteProvider, { configured: boolean; hint: string | null }>
+}
+
+export interface SettingsPatch {
+  chunkChars?: number
+  ocrLang?: OcrLang
+}
 
 /**
  * Origen de un extracto HTML (brief §5.2):
@@ -95,9 +138,24 @@ export interface RendererApi {
    * ejecución; el progreso y el texto llegan por los eventos `ocr:progress`,
    * `ocr:page` y `ocr:done`.
    */
-  startOcr(source: PdfSource, pages: number[]): Promise<string>
+  startOcr(source: PdfSource, pages: number[], lang: OcrLang): Promise<string>
   /** Cancela una ejecución de OCR y termina su worker. */
   cancelOcr(ocrId: string): Promise<void>
+  /** Voces del proveedor remoto (usa la API key guardada). Rechaza si no hay key. */
+  listRemoteVoices(provider: RemoteProvider): Promise<RemoteVoice[]>
+  /**
+   * Sintetiza un texto con el proveedor remoto. Comprueba primero la caché en
+   * disco (brief §5.6). El renderer reproduce los bytes con `<audio>`.
+   */
+  synthesize(req: SynthesizeRequest): Promise<SynthesizeResponse>
+  /** Estado de ajustes para el modal (sin exponer las keys). */
+  getSettings(): Promise<SettingsView>
+  setSettings(patch: SettingsPatch): Promise<SettingsView>
+  /** Guarda cifrada la API key de un proveedor (vacío = borrarla). */
+  setSecret(provider: RemoteProvider, key: string): Promise<void>
+  clearSecret(provider: RemoteProvider): Promise<void>
+  /** Vacía la caché de audio remoto. */
+  clearAudioCache(): Promise<void>
   /** Diálogo nativo para elegir un PDF o HTML. `null` si se cancela. */
   pickDocument(): Promise<string | null>
   /**

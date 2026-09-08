@@ -20,15 +20,17 @@ export function Transport() {
   const prev = usePlayer((s) => s.prev)
   const setRate = usePlayer((s) => s.setRate)
   const setVoice = usePlayer((s) => s.setVoice)
+  const setEngine = usePlayer((s) => s.setEngine)
 
   const total = doc?.paragraphs.length ?? 0
   const has = total > 0
   const pos = has ? activeIndex + 1 : 0
   const pct = has ? (pos / total) * 100 : 0
 
+  const engineWord = engine === 'system' ? 'voz del sistema' : ENGINE_LABELS[engine]
   const statusLabel =
     status === 'playing'
-      ? 'Reproduciendo · voz del sistema'
+      ? `Reproduciendo · ${engineWord}`
       : status === 'paused'
         ? 'En pausa'
         : has
@@ -89,13 +91,12 @@ export function Transport() {
       <div className="transport__controls">
         <label className="field">
           Motor
-          <select value={engine} disabled>
-            {(Object.keys(ENGINE_LABELS) as EngineId[]).map((id) => (
-              <option key={id} value={id} disabled={id !== 'system'}>
-                {ENGINE_LABELS[id]}
-                {id !== 'system' ? ' — próximamente' : ''}
-              </option>
-            ))}
+          <select value={engine} onChange={(e) => void setEngine(e.target.value as EngineId)}>
+            <option value="system">{ENGINE_LABELS.system}</option>
+            <option value="elevenlabs">{ENGINE_LABELS.elevenlabs}</option>
+            <option value="openai" disabled>
+              {ENGINE_LABELS.openai} — paso 7
+            </option>
           </select>
         </label>
 

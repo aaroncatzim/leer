@@ -62,10 +62,12 @@ export async function ocrPdfPages(opts: OcrRunOptions): Promise<void> {
 
   const lang = opts.lang ?? 'spa'
   const langPath = tessdataDir()
-  // Sin este archivo tesseract.js intentaría descargarlo de la red y colgarse;
-  // mejor fallar con un mensaje claro.
-  if (!existsSync(join(langPath, `${lang}.traineddata`))) {
-    throw new Error(`No se encontró el idioma de OCR (${lang}.traineddata).`)
+  // Sin estos archivos tesseract.js intentaría descargarlos de la red y
+  // colgarse; mejor fallar con un mensaje claro.
+  for (const l of lang.split('+')) {
+    if (!existsSync(join(langPath, `${l}.traineddata`))) {
+      throw new Error(`Falta el idioma de OCR "${l}" (${l}.traineddata).`)
+    }
   }
 
   const { getDocument } = await getPdfjs()

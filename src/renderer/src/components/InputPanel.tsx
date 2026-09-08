@@ -16,6 +16,7 @@ export function InputPanel() {
   const busy = usePlayer((s) => s.busy)
   const loadError = usePlayer((s) => s.loadError)
   const apiChars = usePlayer((s) => s.apiChars)
+  const openSettings = usePlayer((s) => s.openSettings)
 
   async function openFile(): Promise<void> {
     const path = await window.api.pickDocument()
@@ -92,13 +93,7 @@ export function InputPanel() {
           <span>Caché de audio</span>
           <b>0 MB</b>
         </div>
-        <button
-          type="button"
-          className="btn btn--ghost"
-          style={{ height: 34 }}
-          disabled
-          title="Próximamente — paso 6 del brief"
-        >
+        <button type="button" className="btn btn--ghost" style={{ height: 34 }} onClick={openSettings}>
           Ajustes…
         </button>
       </div>

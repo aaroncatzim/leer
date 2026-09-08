@@ -9,14 +9,13 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
   [`docs/mockups.md`](docs/mockups.md) · lienzo:
   [`docs/Lector Audio - Mockups.html`](docs/Lector%20Audio%20-%20Mockups.html)
 
-> **Estado: paso 5 del brief.** Entrada por texto pegado, **URL**, **HTML** o
-> **PDF** (con capa de texto o escaneado). El HTML pasa por Readability; el PDF
-> se extrae con `pdfjs-dist` y se normaliza; las páginas sin texto pasan por
-> **OCR** (`tesseract.js` + `@napi-rs/canvas`, idioma `spa` empaquetado, sin
-> red) de forma progresiva, con barra, cancelable, y se puede ir escuchando lo
-> ya reconocido. Reproducción con la voz del sistema (offline), resaltado por
-> párrafo y por palabra. Layout: dirección **1a**. Falta: motores TTS remotos,
-> exportar MP3 y modal de ajustes.
+> **Estado: paso 6 del brief.** Entrada por texto pegado, **URL**, **HTML** o
+> **PDF** (con capa de texto o escaneado → OCR progresivo). Dos motores de voz:
+> **Sistema** (offline) y **ElevenLabs** (la key se guarda cifrada con
+> `safeStorage`, nunca llega al renderer; audio en caché en `userData`, contador
+> de caracteres). Modal de **Ajustes** (keys, idioma OCR, tamaño de chunk,
+> caché). Resaltado por párrafo (y por palabra en el motor local). Layout: **1a**.
+> Falta: OpenAI TTS y exportar MP3.
 
 ## Stack
 
@@ -109,9 +108,11 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
   producción (`default-src 'self'`, `connect-src 'self'`).
 - Navegación fuera de la app bloqueada; los enlaces externos abren en el
   navegador del sistema.
-- **Pendiente** (fases posteriores): cifrado de las API keys con `safeStorage`
-  —verificar la API vigente de Electron antes de implementar, no asumir firmas
-  de memoria—, y firma / notarización de los instaladores.
+- Las API keys se cifran con `safeStorage` (`encryptString`/`decryptString`,
+  disponibles tras `app ready`) en `userData/secrets.bin`; el renderer solo
+  recibe un booleano "configurada" y una pista enmascarada. El renderer nunca
+  llama a las APIs de voz: lo hace el main.
+- **Pendiente**: firma / notarización de los instaladores (paso 8).
 
 ## Roadmap (orden del brief §8)
 
@@ -130,6 +131,12 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
    rasteriza con `@napi-rs/canvas` a ~200 DPI y reconoce con `tesseract.js`
    (`spa` en [`resources/tessdata`](resources/tessdata), sin red). Progreso por
    `ocr:progress`/`ocr:page`, cancelable, y termina los workers al cerrar.
-6. ⬜ Proveedor TTS remoto (uno) + caché de audio + secretos.
-7. ⬜ Segundo proveedor remoto + exportar MP3.
+6. ✅ Motor TTS remoto (ElevenLabs) + caché de audio + secretos:
+   [`src/main/tts/remote.ts`](src/main/tts/remote.ts) llama a la API (verificada:
+   `POST /v1/text-to-speech/{voice_id}`), cachea el mp3 por
+   `sha256(provider|voz|modelo|velocidad|texto)`; [`src/main/settings.ts`](src/main/settings.ts)
+   cifra las keys con `safeStorage`. Modal en
+   [`src/renderer/src/components/Settings.tsx`](src/renderer/src/components/Settings.tsx).
+   Segmentador §5.4 en [`src/shared/segment.ts`](src/shared/segment.ts) (con tests).
+7. ⬜ Segundo proveedor remoto (OpenAI TTS) + exportar MP3.
 8. ⬜ Empaquetado y firma (notarización macOS, SmartScreen Windows).

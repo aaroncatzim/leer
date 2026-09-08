@@ -5,20 +5,26 @@ import {
   insertPageParagraphs,
   type LectorDocument
 } from '@shared/document'
-import type { HtmlSource, PdfSource } from '@shared/ipc'
-import { SystemTtsProvider, type Voice } from './lib/tts'
+import type { HtmlSource, OcrLang, PdfSource } from '@shared/ipc'
+import { RemoteTtsProvider } from './lib/remoteTts'
+import { SystemTtsProvider, type TtsProvider, type Voice } from './lib/tts'
 
 /**
- * Estado del reproductor. El proveedor TTS es un singleton de módulo y el bucle
- * de reproducción avanza párrafo a párrafo (brief §5.4: el motor local recibe
- * un párrafo cada vez). `generation` invalida bucles obsoletos cuando el
- * usuario salta, para, cambia de velocidad, etc.
+ * Estado del reproductor. Los proveedores TTS son singletons de módulo y el
+ * bucle de reproducción avanza párrafo a párrafo. `generation` invalida bucles
+ * obsoletos cuando el usuario salta, para, cambia de motor/velocidad, etc.
  */
-
-const provider = new SystemTtsProvider()
 
 export type EngineId = 'system' | 'elevenlabs' | 'openai'
 export type Status = 'idle' | 'playing' | 'paused'
+
+const systemProvider = new SystemTtsProvider()
+const remoteProvider = new RemoteTtsProvider()
+
+function providerFor(engine: EngineId): TtsProvider {
+  if (engine === 'elevenlabs') return remoteProvider
+  return systemProvider
+}
 
 export interface OcrState {
   id: string
@@ -47,12 +53,20 @@ interface PlayerState {
   ocr: OcrState | null
   /** Último PDF cargado, para poder relanzar el OCR de sus páginas. */
   lastPdfSource: PdfSource | null
+  /** Idioma(s) de OCR (persistido en ajustes). */
+  ocrLang: OcrLang
+  /** Modal de ajustes abierto. */
+  settingsOpen: boolean
 
   initVoices: () => Promise<void>
+  syncSettings: () => Promise<void>
+  setEngine: (engine: EngineId) => Promise<void>
   loadText: (raw: string) => void
   loadHtml: (source: HtmlSource) => Promise<void>
   loadPdf: (source: PdfSource) => Promise<void>
   cancelOcr: () => void
+  openSettings: () => void
+  closeSettings: () => void
   clearError: () => void
   toggle: () => void
   stop: () => void
@@ -67,9 +81,15 @@ interface PlayerState {
 let generation = 0
 
 export const usePlayer = create<PlayerState>((set, get) => {
+  function stopAll(): void {
+    systemProvider.stop()
+    remoteProvider.stop()
+  }
+
   async function runFrom(startIndex: number): Promise<void> {
     const gen = ++generation
     if (!get().doc || get().doc!.paragraphs.length === 0) return
+    const prov = providerFor(get().engine)
     set({ status: 'playing' })
 
     // Se relee `doc` en cada vuelta para incorporar párrafos que el OCR vaya
@@ -78,11 +98,17 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const doc = get().doc
       if (gen !== generation || !doc || i >= doc.paragraphs.length) break
       set({ activeIndex: i, wordStart: -1 })
+      const opts = { voiceId: get().voiceId, rate: get().rate }
       try {
-        await provider.speak(doc.paragraphs[i].text, { voiceId: get().voiceId, rate: get().rate })
+        // Precarga el siguiente párrafo mientras suena el actual (motor remoto).
+        const nextPara = doc.paragraphs[i + 1]
+        if (nextPara && prov.prefetch) prov.prefetch(nextPara.text, opts)
+        await prov.speak(doc.paragraphs[i].text, opts)
       } catch (err) {
         console.error('[tts]', err)
-        if (gen === generation) set({ status: 'idle', wordStart: -1 })
+        if (gen === generation) {
+          set({ status: 'idle', wordStart: -1, loadError: err instanceof Error ? err.message : String(err) })
+        }
         return
       }
       if (gen !== generation) return
@@ -90,9 +116,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
     if (gen === generation) set({ status: 'idle', activeIndex: 0, wordStart: -1 })
   }
 
-  provider.onBoundary((charIndex) => {
-    if (get().status === 'playing') set({ wordStart: charIndex })
+  systemProvider.onBoundary((charIndex) => {
+    if (get().status === 'playing' && get().engine === 'system') set({ wordStart: charIndex })
   })
+  remoteProvider.onChars((chars) => set((s) => ({ apiChars: s.apiChars + chars })))
 
   function stopOcr(): void {
     const { ocr } = get()
@@ -103,7 +130,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
   async function runExtract(extract: () => Promise<LectorDocument>): Promise<void> {
     if (get().busy) return
     generation++
-    provider.stop()
+    stopAll()
     stopOcr()
     set({ busy: true, loadError: null, lastPdfSource: null })
     try {
@@ -118,7 +145,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
   async function beginOcr(source: PdfSource, pages: number[]): Promise<void> {
     try {
-      const id = await window.api.startOcr(source, pages)
+      const id = await window.api.startOcr(source, pages, get().ocrLang)
       set({ ocr: { id, total: pages.length, done: 0 } })
     } catch (err) {
       set({ loadError: `OCR: ${err instanceof Error ? err.message : String(err)}` })
@@ -187,9 +214,26 @@ export const usePlayer = create<PlayerState>((set, get) => {
     loadError: null,
     ocr: null,
     lastPdfSource: null,
+    ocrLang: 'spa',
+    settingsOpen: false,
+
+    async syncSettings() {
+      try {
+        const s = await window.api.getSettings()
+        set({ ocrLang: s.ocrLang })
+      } catch {
+        /* usa el valor por defecto */
+      }
+    },
+
+    openSettings: () => set({ settingsOpen: true }),
+    closeSettings: () => {
+      void get().syncSettings()
+      set({ settingsOpen: false })
+    },
 
     async initVoices() {
-      const voices = await provider.listVoices()
+      const voices = await providerFor(get().engine).listVoices()
       set((s) => ({
         voices,
         voiceId:
@@ -200,9 +244,41 @@ export const usePlayer = create<PlayerState>((set, get) => {
       }))
     },
 
+    async setEngine(engine) {
+      if (engine === get().engine) return
+      if (engine === 'openai') {
+        set({ loadError: 'OpenAI TTS llega en el paso 7.' })
+        return
+      }
+      const wasPlaying = get().status === 'playing'
+      generation++
+      stopAll()
+      set({ engine, voices: [], voiceId: null, status: wasPlaying ? 'idle' : get().status })
+      try {
+        const voices = await providerFor(engine).listVoices()
+        set({
+          voices,
+          voiceId:
+            voices.find((v) => v.lang.toLowerCase().startsWith('es'))?.id ?? voices[0]?.id ?? null
+        })
+        // Cambiar de motor a mitad de lectura conserva el párrafo (brief §6).
+        if (wasPlaying) void runFrom(get().activeIndex)
+      } catch (err) {
+        set({
+          engine: 'system',
+          loadError: err instanceof Error ? err.message : String(err)
+        })
+        const sys = await systemProvider.listVoices()
+        set({
+          voices: sys,
+          voiceId: sys.find((v) => v.lang.toLowerCase().startsWith('es'))?.id ?? sys[0]?.id ?? null
+        })
+      }
+    },
+
     loadText(raw) {
       generation++
-      provider.stop()
+      stopAll()
       stopOcr()
       set({
         doc: buildTextDocument(raw),
@@ -236,10 +312,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const { status, doc, activeIndex } = get()
       if (!doc || doc.paragraphs.length === 0) return
       if (status === 'playing') {
-        provider.pause()
+        providerFor(get().engine).pause()
         set({ status: 'paused' })
       } else if (status === 'paused') {
-        provider.resume()
+        providerFor(get().engine).resume()
         set({ status: 'playing' })
       } else {
         void runFrom(activeIndex)
@@ -248,7 +324,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     stop() {
       generation++
-      provider.stop()
+      stopAll()
       set({ status: 'idle', activeIndex: 0, wordStart: -1 })
     },
 
@@ -276,7 +352,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
         void runFrom(target)
       } else {
         generation++
-        provider.stop()
+        stopAll()
         set({ activeIndex: target, status: 'idle', wordStart: -1 })
       }
     },
