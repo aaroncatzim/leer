@@ -26,7 +26,7 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
 | Build        | electron-vite 5 (Vite 7)          |
 | UI           | React 19 + TypeScript 7           |
 | Estado UI    | Zustand 5                         |
-| Tests        | Vitest 5                          |
+| Tests        | Vitest 5 (unitarios) · Playwright 1.63 (`_electron`, E2E) |
 | Extracción   | jsdom + @mozilla/readability · pdfjs-dist · tesseract.js + @napi-rs/canvas |
 | Empaquetado  | electron-builder 26 (NSIS / DMG)  |
 | Tipografía   | Atkinson Hyperlegible + Public Sans (subset latino local) |
@@ -69,6 +69,7 @@ Notas de instalación:
 | `npm run preview`               | Ejecuta el build de `out/` sin empaquetar.                 |
 | `npm run typecheck`             | `tsc --noEmit` de los proyectos node y web.                |
 | `npm test`                      | Tests unitarios (Vitest).                                  |
+| `npm run test:e2e`              | E2E sobre Electron (Playwright): pegar texto → play → resaltado. |
 | `npm run pack:dir`              | Empaqueta sin instalador (`electron-builder --dir`).       |
 | `npm run dist:mac` / `dist:win` | Genera DMG / instalador NSIS.                              |
 
@@ -166,3 +167,8 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
 8. ✅ Empaquetado con electron-builder (`electron-builder.yml`): DMG arm64/x64,
    NSIS x64, icono, `extraResources` de tessdata, `asarUnpack` de nativos,
    runtime endurecido + entitlements + `notarize` condicional. DMG arm64 probado.
+
+Deliverables del brief §10: `README` (setup/build/keys) ✓ · tests del
+normalizador y segmentador (Vitest) ✓ · E2E mínimo con Playwright para Electron
+([`e2e/basic.spec.ts`](e2e/basic.spec.ts)) ✓ · instaladores `.dmg` (generado) /
+`.exe` (se genera en Windows).
