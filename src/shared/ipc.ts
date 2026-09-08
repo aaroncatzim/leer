@@ -18,7 +18,8 @@ export const IpcChannel = {
   AppGetInfo: 'app:get-info',
   AppPing: 'app:ping',
   ExtractHtml: 'extract:html',
-  PickHtmlFile: 'dialog:pick-html'
+  ExtractPdf: 'extract:pdf',
+  PickDocument: 'dialog:pick-document'
 } as const
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel]
 
@@ -32,6 +33,15 @@ export type HtmlSource =
   | { kind: 'url'; url: string }
   | { kind: 'file'; path: string }
   | { kind: 'html'; html: string; label?: string }
+
+/**
+ * Origen de un extracto PDF:
+ *  - `file`  : el main lee la ruta.
+ *  - `bytes` : PDF ya en memoria (archivo soltado y leído en el renderer).
+ */
+export type PdfSource =
+  | { kind: 'file'; path: string }
+  | { kind: 'bytes'; bytes: ArrayBuffer; label?: string }
 
 /** Eventos que el main empuja al renderer (`webContents.send`). */
 export const IpcEvent = {
@@ -67,8 +77,13 @@ export interface RendererApi {
    * falla la descarga o el recurso no es HTML.
    */
   extractHtml(source: HtmlSource): Promise<LectorDocument>
-  /** Diálogo nativo para elegir un archivo HTML. `null` si se cancela. */
-  pickHtmlFile(): Promise<string | null>
+  /**
+   * Extrae el texto de un PDF con `pdfjs-dist` (sin OCR) y lo normaliza. Rechaza
+   * si el PDF no se puede abrir o no tiene capa de texto.
+   */
+  extractPdf(source: PdfSource): Promise<LectorDocument>
+  /** Diálogo nativo para elegir un PDF o HTML. `null` si se cancela. */
+  pickDocument(): Promise<string | null>
   /**
    * Suscribe a un evento main -> renderer.
    * @returns función para cancelar la suscripción.

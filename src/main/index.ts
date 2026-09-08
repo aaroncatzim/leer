@@ -5,10 +5,12 @@ import {
   IpcEvent,
   type AppInfo,
   type HtmlSource,
+  type PdfSource,
   type PingResult,
   type Platform
 } from '../shared/ipc'
 import { extractHtml } from './extract/html'
+import { extractPdf } from './extract/pdf'
 
 const isDev = !app.isPackaged
 const APP_USER_MODEL_ID = 'com.aaroncatzim.lectoraudio'
@@ -107,13 +109,18 @@ function registerIpcHandlers(): void {
 
   // El rechazo se propaga al `invoke` del renderer como promesa rechazada.
   ipcMain.handle(IpcChannel.ExtractHtml, (_event, source: HtmlSource) => extractHtml(source))
+  ipcMain.handle(IpcChannel.ExtractPdf, (_event, source: PdfSource) => extractPdf(source))
 
-  ipcMain.handle(IpcChannel.PickHtmlFile, async (event): Promise<string | null> => {
+  ipcMain.handle(IpcChannel.PickDocument, async (event): Promise<string | null> => {
     const owner = BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions = {
-      title: 'Abrir HTML',
+      title: 'Abrir PDF o HTML',
       properties: ['openFile'],
-      filters: [{ name: 'HTML', extensions: ['html', 'htm', 'xhtml'] }]
+      filters: [
+        { name: 'Documentos', extensions: ['pdf', 'html', 'htm', 'xhtml'] },
+        { name: 'PDF', extensions: ['pdf'] },
+        { name: 'HTML', extensions: ['html', 'htm', 'xhtml'] }
+      ]
     }
     const result = owner
       ? await dialog.showOpenDialog(owner, options)

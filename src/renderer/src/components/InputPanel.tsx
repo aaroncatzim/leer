@@ -11,14 +11,17 @@ export function InputPanel() {
   const [url, setUrl] = useState('')
   const loadText = usePlayer((s) => s.loadText)
   const loadHtml = usePlayer((s) => s.loadHtml)
+  const loadPdf = usePlayer((s) => s.loadPdf)
   const clearError = usePlayer((s) => s.clearError)
   const busy = usePlayer((s) => s.busy)
   const loadError = usePlayer((s) => s.loadError)
   const apiChars = usePlayer((s) => s.apiChars)
 
   async function openFile(): Promise<void> {
-    const path = await window.api.pickHtmlFile()
-    if (path) void loadHtml({ kind: 'file', path })
+    const path = await window.api.pickDocument()
+    if (!path) return
+    if (/\.pdf$/i.test(path)) void loadPdf({ kind: 'file', path })
+    else void loadHtml({ kind: 'file', path })
   }
 
   function readUrl(): void {
@@ -47,9 +50,9 @@ export function InputPanel() {
         className="btn btn--ghost"
         onClick={openFile}
         disabled={busy}
-        title="Abrir un archivo HTML (el PDF llega en el paso 4)"
+        title="Abrir un archivo PDF o HTML"
       >
-        Abrir HTML…
+        Abrir PDF / HTML…
       </button>
 
       <div className="input__url">
@@ -68,7 +71,7 @@ export function InputPanel() {
       </div>
 
       <div className="input__drop">
-        {busy ? 'Procesando…' : 'Arrastra un archivo HTML a cualquier parte de la ventana'}
+        {busy ? 'Procesando…' : 'Arrastra un PDF o HTML a cualquier parte de la ventana'}
       </div>
 
       {loadError && (

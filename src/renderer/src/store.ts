@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { buildTextDocument, type LectorDocument } from '@shared/document'
-import type { HtmlSource } from '@shared/ipc'
+import type { HtmlSource, PdfSource } from '@shared/ipc'
 import { SystemTtsProvider, type Voice } from './lib/tts'
 
 /**
@@ -28,7 +28,7 @@ interface PlayerState {
   warningsOpen: boolean
   /** Contador de sesión para la futura factura de la API (brief §5.6). */
   apiChars: number
-  /** Extracción en curso (descarga / parseo de HTML). */
+  /** Extracción en curso (descarga / parseo de HTML o PDF). */
   busy: boolean
   /** Último error de carga (URL inválida, descarga fallida, etc.). */
   loadError: string | null
@@ -36,6 +36,7 @@ interface PlayerState {
   initVoices: () => Promise<void>
   loadText: (raw: string) => void
   loadHtml: (source: HtmlSource) => Promise<void>
+  loadPdf: (source: PdfSource) => Promise<void>
   clearError: () => void
   toggle: () => void
   stop: () => void
@@ -76,6 +77,22 @@ export const usePlayer = create<PlayerState>((set, get) => {
     if (get().status === 'playing') set({ wordStart: charIndex })
   })
 
+  /** Envuelve una extracción (HTML/PDF): estado busy + error legible. */
+  async function runExtract(extract: () => Promise<LectorDocument>): Promise<void> {
+    if (get().busy) return
+    generation++
+    provider.stop()
+    set({ busy: true, loadError: null })
+    try {
+      const doc = await extract()
+      set({ doc, activeIndex: 0, status: 'idle', wordStart: -1, warningsOpen: true })
+    } catch (err) {
+      set({ loadError: err instanceof Error ? err.message : String(err) })
+    } finally {
+      set({ busy: false })
+    }
+  }
+
   return {
     doc: null,
     activeIndex: 0,
@@ -115,20 +132,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
       })
     },
 
-    async loadHtml(source) {
-      if (get().busy) return
-      generation++
-      provider.stop()
-      set({ busy: true, loadError: null })
-      try {
-        const doc = await window.api.extractHtml(source)
-        set({ doc, activeIndex: 0, status: 'idle', wordStart: -1, warningsOpen: true })
-      } catch (err) {
-        set({ loadError: err instanceof Error ? err.message : String(err) })
-      } finally {
-        set({ busy: false })
-      }
-    },
+    loadHtml: (source) => runExtract(() => window.api.extractHtml(source)),
+    loadPdf: (source) => runExtract(() => window.api.extractPdf(source)),
 
     clearError() {
       set({ loadError: null })

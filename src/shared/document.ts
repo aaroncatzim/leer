@@ -55,20 +55,29 @@ export function deriveTitle(paragraphs: string[]): string {
   return head.length < first.length ? head + '…' : head
 }
 
+/** Un párrafo de entrada: texto suelto o texto con número de página (PDF). */
+export type ParagraphInput = string | { text: string; page?: number }
+
 /** Construye un `LectorDocument` a partir de una lista de párrafos ya limpios. */
 export function buildDocument(opts: {
   source: DocumentSource
-  paragraphs: string[]
+  paragraphs: ParagraphInput[]
   title?: string
   warnings?: string[]
 }): LectorDocument {
-  const parts = opts.paragraphs.map((p) => p.trim()).filter(Boolean)
-  const id = fnv1a(parts.join('\n\n'))
+  const parts = opts.paragraphs
+    .map((p) => (typeof p === 'string' ? { text: p.trim() } : { text: p.text.trim(), page: p.page }))
+    .filter((p) => p.text.length > 0)
+  const id = fnv1a(parts.map((p) => p.text).join('\n\n'))
   return {
     id,
     source: opts.source,
-    title: opts.title?.trim() || deriveTitle(parts),
-    paragraphs: parts.map((text, i) => ({ id: `${id}-${i}`, text })),
+    title: opts.title?.trim() || deriveTitle(parts.map((p) => p.text)),
+    paragraphs: parts.map((p, i) => ({
+      id: `${id}-${i}`,
+      text: p.text,
+      ...(p.page !== undefined ? { page: p.page } : {})
+    })),
     warnings: opts.warnings ?? []
   }
 }

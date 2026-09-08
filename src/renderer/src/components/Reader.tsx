@@ -92,6 +92,7 @@ export function Reader() {
                   p.text
                 )}
               </p>
+              {p.page !== undefined && <span className="para__page">p. {p.page}</span>}
             </div>
           )
         })}

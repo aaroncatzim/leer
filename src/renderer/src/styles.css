@@ -375,6 +375,16 @@ button {
   display: none;
 }
 
+.para__page {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+  font: 500 10px var(--font-ui);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* ── Empty state ──────────────────────────────────────────────────── */
 
 .empty {

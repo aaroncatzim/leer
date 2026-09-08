@@ -5,11 +5,13 @@ import { Transport } from './components/Transport'
 import { usePlayer } from './store'
 
 const HTML_FILE = /\.(xhtml|html?|htm)$/i
+const PDF_FILE = /\.pdf$/i
 
 export function App() {
   const initVoices = usePlayer((s) => s.initVoices)
   const toggle = usePlayer((s) => s.toggle)
   const loadHtml = usePlayer((s) => s.loadHtml)
+  const loadPdf = usePlayer((s) => s.loadPdf)
   const docTitle = usePlayer((s) => s.doc?.title ?? 'Lector Audio')
   const [toast, setToast] = useState('')
   const [dragging, setDragging] = useState(false)
@@ -43,12 +45,14 @@ export function App() {
     setDragging(false)
     const file = e.dataTransfer.files[0]
     if (!file) return
-    if (!HTML_FILE.test(file.name)) {
-      setToast('Suelta un archivo HTML (.html)')
+    if (PDF_FILE.test(file.name)) {
+      void loadPdf({ kind: 'bytes', bytes: await file.arrayBuffer(), label: file.name })
+    } else if (HTML_FILE.test(file.name)) {
+      void loadHtml({ kind: 'html', html: await file.text(), label: file.name })
+    } else {
+      setToast('Suelta un PDF o un archivo HTML')
       window.setTimeout(() => setToast(''), 2600)
-      return
     }
-    void loadHtml({ kind: 'html', html: await file.text(), label: file.name })
   }
 
   return (
