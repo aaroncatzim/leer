@@ -6,6 +6,8 @@ const api: RendererApi = {
   ping: (message) => ipcRenderer.invoke(IpcChannel.AppPing, message),
   extractHtml: (source) => ipcRenderer.invoke(IpcChannel.ExtractHtml, source),
   extractPdf: (source) => ipcRenderer.invoke(IpcChannel.ExtractPdf, source),
+  startOcr: (source, pages) => ipcRenderer.invoke(IpcChannel.OcrStart, source, pages),
+  cancelOcr: (ocrId) => ipcRenderer.invoke(IpcChannel.OcrCancel, ocrId),
   pickDocument: () => ipcRenderer.invoke(IpcChannel.PickDocument),
   on: <E extends IpcEvent>(event: E, listener: (payload: IpcEventPayload[E]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload[E]): void =>

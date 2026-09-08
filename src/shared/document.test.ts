@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildDocument, buildTextDocument, splitParagraphs } from './document'
+import {
+  buildDocument,
+  buildTextDocument,
+  formatPageRanges,
+  insertPageParagraphs,
+  splitParagraphs,
+  type Paragraph
+} from './document'
 
 describe('splitParagraphs', () => {
   it('divide por líneas en blanco dobles', () => {
@@ -72,5 +79,37 @@ describe('buildDocument', () => {
     expect(buildDocument({ source: 'html', paragraphs: ['Titular corto.'] }).title).toBe(
       'Titular corto.'
     )
+  })
+})
+
+describe('formatPageRanges', () => {
+  it('agrupa consecutivos y lista sueltos', () => {
+    expect(formatPageRanges([3, 4, 5, 9, 11, 12])).toBe('3–5, 9, 11–12')
+    expect(formatPageRanges([7])).toBe('7')
+    expect(formatPageRanges([])).toBe('')
+  })
+})
+
+describe('insertPageParagraphs', () => {
+  const base: Paragraph[] = [
+    { id: 'd-0', text: 'Página uno.', page: 1 },
+    { id: 'd-1', text: 'Página cuatro.', page: 4 }
+  ]
+
+  it('inserta los párrafos de una página en orden y marca su origen', () => {
+    const { paragraphs, insertAt, count } = insertPageParagraphs(base, 3, ['A.', 'B.'], 'd')
+    expect(insertAt).toBe(1)
+    expect(count).toBe(2)
+    expect(paragraphs.map((p) => p.text)).toEqual(['Página uno.', 'A.', 'B.', 'Página cuatro.'])
+    expect(paragraphs[1]).toMatchObject({ page: 3, origin: 'ocr' })
+  })
+
+  it('añade al final si ninguna página posterior existe', () => {
+    const { insertAt } = insertPageParagraphs(base, 9, ['Z.'], 'd')
+    expect(insertAt).toBe(2)
+  })
+
+  it('descarta textos vacíos', () => {
+    expect(insertPageParagraphs(base, 2, ['  ', '', 'Real.'], 'd').count).toBe(1)
   })
 })

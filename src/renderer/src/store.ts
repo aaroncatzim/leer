@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import { buildTextDocument, type LectorDocument } from '@shared/document'
+import {
+  buildTextDocument,
+  formatPageRanges,
+  insertPageParagraphs,
+  type LectorDocument
+} from '@shared/document'
 import type { HtmlSource, PdfSource } from '@shared/ipc'
 import { SystemTtsProvider, type Voice } from './lib/tts'
 
@@ -14,6 +19,12 @@ const provider = new SystemTtsProvider()
 
 export type EngineId = 'system' | 'elevenlabs' | 'openai'
 export type Status = 'idle' | 'playing' | 'paused'
+
+export interface OcrState {
+  id: string
+  total: number
+  done: number
+}
 
 interface PlayerState {
   doc: LectorDocument | null
@@ -32,11 +43,16 @@ interface PlayerState {
   busy: boolean
   /** Último error de carga (URL inválida, descarga fallida, etc.). */
   loadError: string | null
+  /** OCR en curso sobre el PDF actual, o `null`. */
+  ocr: OcrState | null
+  /** Último PDF cargado, para poder relanzar el OCR de sus páginas. */
+  lastPdfSource: PdfSource | null
 
   initVoices: () => Promise<void>
   loadText: (raw: string) => void
   loadHtml: (source: HtmlSource) => Promise<void>
   loadPdf: (source: PdfSource) => Promise<void>
+  cancelOcr: () => void
   clearError: () => void
   toggle: () => void
   stop: () => void
@@ -53,12 +69,14 @@ let generation = 0
 export const usePlayer = create<PlayerState>((set, get) => {
   async function runFrom(startIndex: number): Promise<void> {
     const gen = ++generation
-    const doc = get().doc
-    if (!doc || doc.paragraphs.length === 0) return
+    if (!get().doc || get().doc!.paragraphs.length === 0) return
     set({ status: 'playing' })
 
-    for (let i = startIndex; i < doc.paragraphs.length; i++) {
-      if (gen !== generation) return
+    // Se relee `doc` en cada vuelta para incorporar párrafos que el OCR vaya
+    // insertando mientras se lee.
+    for (let i = startIndex; ; i++) {
+      const doc = get().doc
+      if (gen !== generation || !doc || i >= doc.paragraphs.length) break
       set({ activeIndex: i, wordStart: -1 })
       try {
         await provider.speak(doc.paragraphs[i].text, { voiceId: get().voiceId, rate: get().rate })
@@ -69,7 +87,6 @@ export const usePlayer = create<PlayerState>((set, get) => {
       }
       if (gen !== generation) return
     }
-    // Fin del documento: volver al principio, en pausa.
     if (gen === generation) set({ status: 'idle', activeIndex: 0, wordStart: -1 })
   }
 
@@ -77,12 +94,18 @@ export const usePlayer = create<PlayerState>((set, get) => {
     if (get().status === 'playing') set({ wordStart: charIndex })
   })
 
-  /** Envuelve una extracción (HTML/PDF): estado busy + error legible. */
+  function stopOcr(): void {
+    const { ocr } = get()
+    if (ocr) void window.api.cancelOcr(ocr.id)
+    set({ ocr: null })
+  }
+
   async function runExtract(extract: () => Promise<LectorDocument>): Promise<void> {
     if (get().busy) return
     generation++
     provider.stop()
-    set({ busy: true, loadError: null })
+    stopOcr()
+    set({ busy: true, loadError: null, lastPdfSource: null })
     try {
       const doc = await extract()
       set({ doc, activeIndex: 0, status: 'idle', wordStart: -1, warningsOpen: true })
@@ -92,6 +115,62 @@ export const usePlayer = create<PlayerState>((set, get) => {
       set({ busy: false })
     }
   }
+
+  async function beginOcr(source: PdfSource, pages: number[]): Promise<void> {
+    try {
+      const id = await window.api.startOcr(source, pages)
+      set({ ocr: { id, total: pages.length, done: 0 } })
+    } catch (err) {
+      set({ loadError: `OCR: ${err instanceof Error ? err.message : String(err)}` })
+    }
+  }
+
+  // ── Eventos de OCR (main → renderer) ──────────────────────────────
+  window.api.on('ocr:progress', ({ ocrId, total, done }) => {
+    const { ocr } = get()
+    if (ocr?.id === ocrId) set({ ocr: { ...ocr, total, done } })
+  })
+
+  window.api.on('ocr:page', ({ ocrId, page, paragraphs }) => {
+    const s = get()
+    if (s.ocr?.id !== ocrId || !s.doc) return
+    const { paragraphs: merged, insertAt, count } = insertPageParagraphs(
+      s.doc.paragraphs,
+      page,
+      paragraphs,
+      s.doc.id
+    )
+    set({
+      doc: {
+        ...s.doc,
+        paragraphs: merged,
+        ocrPending: (s.doc.ocrPending ?? []).filter((p) => p !== page)
+      },
+      activeIndex: s.activeIndex >= insertAt ? s.activeIndex + count : s.activeIndex
+    })
+  })
+
+  window.api.on('ocr:done', ({ ocrId, error }) => {
+    const s = get()
+    if (s.ocr?.id !== ocrId) return
+    set({ ocr: null })
+    if (error) {
+      set({ loadError: `OCR: ${error}` })
+      return
+    }
+    if (s.doc && s.doc.source === 'pdf') {
+      const ocrPages = s.doc.paragraphs
+        .filter((p) => p.origin === 'ocr' && p.page !== undefined)
+        .map((p) => p.page as number)
+      const warnings = s.doc.warnings.filter((w) => !w.includes('aplicando OCR'))
+      if (ocrPages.length > 0) {
+        warnings.push(
+          `Páginas ${formatPageRanges(ocrPages)} procesadas con OCR; el texto puede contener errores.`
+        )
+      }
+      set({ doc: { ...s.doc, warnings, ocrPending: [] } })
+    }
+  })
 
   return {
     doc: null,
@@ -106,6 +185,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
     apiChars: 0,
     busy: false,
     loadError: null,
+    ocr: null,
+    lastPdfSource: null,
 
     async initVoices() {
       const voices = await provider.listVoices()
@@ -122,18 +203,30 @@ export const usePlayer = create<PlayerState>((set, get) => {
     loadText(raw) {
       generation++
       provider.stop()
+      stopOcr()
       set({
         doc: buildTextDocument(raw),
         activeIndex: 0,
         status: 'idle',
         wordStart: -1,
         warningsOpen: true,
-        loadError: null
+        loadError: null,
+        lastPdfSource: null
       })
     },
 
     loadHtml: (source) => runExtract(() => window.api.extractHtml(source)),
-    loadPdf: (source) => runExtract(() => window.api.extractPdf(source)),
+
+    async loadPdf(source) {
+      await runExtract(() => window.api.extractPdf(source))
+      const doc = get().doc
+      if (doc?.source === 'pdf' && doc.ocrPending && doc.ocrPending.length > 0) {
+        set({ lastPdfSource: source })
+        void beginOcr(source, doc.ocrPending)
+      }
+    },
+
+    cancelOcr: stopOcr,
 
     clearError() {
       set({ loadError: null })
@@ -190,7 +283,6 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     setRate(rate) {
       set({ rate })
-      // Cambiar de velocidad a mitad de lectura reinicia el párrafo actual.
       if (get().status === 'playing') void runFrom(get().activeIndex)
     },
 

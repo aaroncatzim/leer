@@ -9,7 +9,7 @@
  */
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { buildDocument, type LectorDocument } from '../../shared/document'
+import { buildDocument, formatPageRanges, type LectorDocument } from '../../shared/document'
 import { normalizePages } from '../../shared/normalize'
 import type { PdfSource } from '../../shared/ipc'
 
@@ -24,12 +24,14 @@ interface PdfTextItem {
 }
 
 let pdfjs: Promise<typeof import('pdfjs-dist')> | null = null
-function getPdfjs(): Promise<typeof import('pdfjs-dist')> {
+/** Carga perezosa de pdfjs (ESM). Compartida con el módulo de OCR. */
+export function getPdfjs(): Promise<typeof import('pdfjs-dist')> {
   pdfjs ??= import('pdfjs-dist/legacy/build/pdf.mjs') as Promise<typeof import('pdfjs-dist')>
   return pdfjs
 }
 
-async function loadBytes(source: PdfSource): Promise<{ data: Uint8Array; label: string }> {
+/** Resuelve un `PdfSource` a sus bytes. Compartido con el módulo de OCR. */
+export async function loadPdfBytes(source: PdfSource): Promise<{ data: Uint8Array; label: string }> {
   if (source.kind === 'file') {
     return { data: new Uint8Array(await readFile(source.path)), label: basename(source.path) }
   }
@@ -61,24 +63,8 @@ function itemsToText(items: readonly unknown[]): string {
   return out
 }
 
-function formatRanges(nums: number[]): string {
-  const sorted = [...new Set(nums)].sort((a, b) => a - b)
-  const parts: string[] = []
-  let start = sorted[0]
-  let prev = sorted[0]
-  for (let i = 1; i <= sorted.length; i++) {
-    if (sorted[i] === prev + 1) {
-      prev = sorted[i]
-      continue
-    }
-    parts.push(start === prev ? `${start}` : `${start}–${prev}`)
-    start = prev = sorted[i]
-  }
-  return parts.join(', ')
-}
-
 export async function extractPdf(source: PdfSource): Promise<LectorDocument> {
-  const { data, label } = await loadBytes(source)
+  const { data, label } = await loadPdfBytes(source)
   const { getDocument } = await getPdfjs()
 
   // `getTextContent()` no necesita datos de fuentes (usa el ToUnicode del PDF);
@@ -116,28 +102,27 @@ export async function extractPdf(source: PdfSource): Promise<LectorDocument> {
 
     const paragraphs = normalizePages(rawPages)
 
-    if (paragraphs.length === 0) {
-      throw new Error(
-        'El PDF no tiene capa de texto (probablemente está escaneado). ' +
-          'El OCR llega en una versión posterior.'
-      )
+    if (paragraphs.length === 0 && lowTextPages.length === 0) {
+      throw new Error('El PDF no contiene texto extraíble.')
     }
 
     const warnings: string[] = []
     if (lowTextPages.length > 0) {
       const noun = lowTextPages.length === 1 ? 'la página' : 'las páginas'
       warnings.push(
-        `Sin texto legible en ${noun} ${formatRanges(lowTextPages)}; probablemente ` +
-          'escaneada(s). El OCR llega en una versión posterior.'
+        `Sin capa de texto en ${noun} ${formatPageRanges(lowTextPages)}; ` +
+          'aplicando OCR (el resultado puede contener errores).'
       )
     }
 
-    return buildDocument({
+    const doc = buildDocument({
       source: 'pdf',
       title: pdfTitle || label.replace(/\.pdf$/i, ''),
       paragraphs,
       warnings
     })
+    if (lowTextPages.length > 0) doc.ocrPending = lowTextPages
+    return doc
   } finally {
     await loadingTask.destroy()
   }

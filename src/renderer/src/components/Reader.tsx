@@ -24,22 +24,28 @@ export function Reader() {
   const status = usePlayer((s) => s.status)
   const wordStart = usePlayer((s) => s.wordStart)
   const warningsOpen = usePlayer((s) => s.warningsOpen)
+  const ocr = usePlayer((s) => s.ocr)
   const jumpTo = usePlayer((s) => s.jumpTo)
   const dismissWarnings = usePlayer((s) => s.dismissWarnings)
+  const cancelOcr = usePlayer((s) => s.cancelOcr)
 
   const activeRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     activeRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [activeIndex])
 
-  if (!doc || doc.paragraphs.length === 0) {
+  const hasParagraphs = !!doc && doc.paragraphs.length > 0
+
+  if (!doc || (!hasParagraphs && !ocr)) {
     return (
       <section className="reader">
         <div className="empty">
-          <div className="empty__glyph" aria-hidden="true">&#9654;</div>
+          <div className="empty__glyph" aria-hidden="true">
+            &#9654;
+          </div>
           <p>
-            Pega texto en el panel de la izquierda y pulsa <strong>Cargar texto</strong> para
-            escucharlo con la voz del sistema.
+            Pega texto en el panel de la izquierda y pulsa <strong>Cargar texto</strong>, o abre
+            un PDF o una página web para escucharlos con la voz del sistema.
           </p>
         </div>
       </section>
@@ -48,9 +54,30 @@ export function Reader() {
 
   return (
     <section className="reader">
+      {ocr && (
+        <div className="reader__ocr">
+          <span className="reader__ocr-spin" aria-hidden="true" />
+          <span className="reader__ocr-label">
+            OCR · página {ocr.done} de {ocr.total}
+          </span>
+          <div className="reader__ocr-track">
+            <div
+              className="reader__ocr-bar"
+              style={{ width: `${ocr.total ? (ocr.done / ocr.total) * 100 : 0}%` }}
+            />
+          </div>
+          <span className="reader__ocr-hint">Ya puedes escuchar lo procesado</span>
+          <button type="button" onClick={cancelOcr}>
+            Cancelar
+          </button>
+        </div>
+      )}
+
       {warningsOpen && doc.warnings.length > 0 && (
         <div className="reader__warn">
-          <span className="reader__warn-mark" aria-hidden="true">!</span>
+          <span className="reader__warn-mark" aria-hidden="true">
+            !
+          </span>
           <p>{doc.warnings.join(' ')}</p>
           <button type="button" onClick={dismissWarnings}>
             Ocultar
@@ -92,10 +119,18 @@ export function Reader() {
                   p.text
                 )}
               </p>
-              {p.page !== undefined && <span className="para__page">p. {p.page}</span>}
+              {(p.page !== undefined || p.origin === 'ocr') && (
+                <span className="para__page">
+                  {p.origin === 'ocr' ? 'OCR ' : ''}
+                  {p.page !== undefined ? `p. ${p.page}` : ''}
+                </span>
+              )}
             </div>
           )
         })}
+        {hasParagraphs || !ocr ? null : (
+          <p className="reader__ocr-wait">Reconociendo el texto de las páginas escaneadas…</p>
+        )}
       </div>
     </section>
   )

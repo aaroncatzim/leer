@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
+import type { Worker as TesseractWorker } from 'tesseract.js'
 import {
   IpcChannel,
   IpcEvent,
@@ -10,10 +12,23 @@ import {
   type Platform
 } from '../shared/ipc'
 import { extractHtml } from './extract/html'
-import { extractPdf } from './extract/pdf'
+import { extractPdf, loadPdfBytes } from './extract/pdf'
+import { ocrPdfPages } from './ocr/pdfOcr'
 
 const isDev = !app.isPackaged
 const APP_USER_MODEL_ID = 'com.aaroncatzim.lectoraudio'
+
+interface OcrRun {
+  signal: { cancelled: boolean }
+  worker?: TesseractWorker
+}
+const ocrRuns = new Map<string, OcrRun>()
+
+function cancelOcrRun(run: OcrRun | undefined): void {
+  if (!run) return
+  run.signal.cancelled = true
+  void run.worker?.terminate().catch(() => undefined)
+}
 
 /**
  * CSP aplicada por cabecera de respuesta (cubre todo recurso, más fiable que
@@ -111,6 +126,39 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannel.ExtractHtml, (_event, source: HtmlSource) => extractHtml(source))
   ipcMain.handle(IpcChannel.ExtractPdf, (_event, source: PdfSource) => extractPdf(source))
 
+  ipcMain.handle(
+    IpcChannel.OcrStart,
+    async (event, source: PdfSource, pages: number[]): Promise<string> => {
+      const ocrId = randomUUID()
+      const run: OcrRun = { signal: { cancelled: false } }
+      ocrRuns.set(ocrId, run)
+
+      const send = (channel: string, payload: unknown): void => {
+        if (!event.sender.isDestroyed()) event.sender.send(channel, payload)
+      }
+
+      const { data } = await loadPdfBytes(source)
+      void ocrPdfPages({
+        data,
+        pages,
+        signal: run.signal,
+        registerWorker: (w) => (run.worker = w),
+        onProgress: (p) => send(IpcEvent.OcrProgress, { ocrId, ...p }),
+        onPage: (r) => send(IpcEvent.OcrPage, { ocrId, page: r.page, paragraphs: r.paragraphs })
+      }).then(
+        () => send(IpcEvent.OcrDone, { ocrId }),
+        (err: unknown) =>
+          send(IpcEvent.OcrDone, { ocrId, error: err instanceof Error ? err.message : String(err) })
+      ).finally(() => ocrRuns.delete(ocrId))
+
+      return ocrId
+    }
+  )
+
+  ipcMain.handle(IpcChannel.OcrCancel, (_event, ocrId: string): void => {
+    cancelOcrRun(ocrRuns.get(ocrId))
+  })
+
   ipcMain.handle(IpcChannel.PickDocument, async (event): Promise<string | null> => {
     const owner = BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions = {
@@ -172,4 +220,11 @@ void app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+// Cerrar la app a mitad de OCR termina los workers sin dejarlos huérfanos
+// (brief §6).
+app.on('before-quit', () => {
+  for (const run of ocrRuns.values()) cancelOcrRun(run)
+  ocrRuns.clear()
 })

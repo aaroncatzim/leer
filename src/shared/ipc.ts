@@ -19,7 +19,9 @@ export const IpcChannel = {
   AppPing: 'app:ping',
   ExtractHtml: 'extract:html',
   ExtractPdf: 'extract:pdf',
-  PickDocument: 'dialog:pick-document'
+  PickDocument: 'dialog:pick-document',
+  OcrStart: 'ocr:start',
+  OcrCancel: 'ocr:cancel'
 } as const
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel]
 
@@ -45,7 +47,10 @@ export type PdfSource =
 
 /** Eventos que el main empuja al renderer (`webContents.send`). */
 export const IpcEvent = {
-  OpenSettings: 'ui:open-settings'
+  OpenSettings: 'ui:open-settings',
+  OcrProgress: 'ocr:progress',
+  OcrPage: 'ocr:page',
+  OcrDone: 'ocr:done'
 } as const
 export type IpcEvent = (typeof IpcEvent)[keyof typeof IpcEvent]
 
@@ -65,6 +70,9 @@ export interface PingResult {
 /** Payload de cada evento push; `void` = sin datos. */
 export interface IpcEventPayload {
   [IpcEvent.OpenSettings]: void
+  [IpcEvent.OcrProgress]: { ocrId: string; page: number; total: number; done: number }
+  [IpcEvent.OcrPage]: { ocrId: string; page: number; paragraphs: string[] }
+  [IpcEvent.OcrDone]: { ocrId: string; error?: string }
 }
 
 /** Superficie que el preload expone en `window.api`. */
@@ -82,6 +90,14 @@ export interface RendererApi {
    * si el PDF no se puede abrir o no tiene capa de texto.
    */
   extractPdf(source: PdfSource): Promise<LectorDocument>
+  /**
+   * Lanza el OCR de las páginas indicadas de un PDF. Devuelve el `ocrId` de la
+   * ejecución; el progreso y el texto llegan por los eventos `ocr:progress`,
+   * `ocr:page` y `ocr:done`.
+   */
+  startOcr(source: PdfSource, pages: number[]): Promise<string>
+  /** Cancela una ejecución de OCR y termina su worker. */
+  cancelOcr(ocrId: string): Promise<void>
   /** Diálogo nativo para elegir un PDF o HTML. `null` si se cancela. */
   pickDocument(): Promise<string | null>
   /**

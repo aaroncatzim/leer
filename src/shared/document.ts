@@ -9,6 +9,8 @@ export interface Paragraph {
   id: string
   text: string
   page?: number
+  /** `'ocr'` si el texto proviene de OCR (puede contener errores). */
+  origin?: 'ocr'
 }
 
 export interface LectorDocument {
@@ -19,6 +21,34 @@ export interface LectorDocument {
   paragraphs: Paragraph[]
   /** Avisos a mostrar en banner (OCR aplicado, Readability falló, etc.). */
   warnings: string[]
+  /** Páginas del PDF sin capa de texto, pendientes de OCR (brief §5.2). */
+  ocrPending?: number[]
+}
+
+/**
+ * Inserta los párrafos de una página recién OCR-izada en el sitio correcto
+ * (ordenado por número de página). Devuelve la lista nueva y dónde se insertó,
+ * para que el reproductor ajuste su índice activo. Función pura.
+ */
+export function insertPageParagraphs(
+  paragraphs: Paragraph[],
+  page: number,
+  texts: string[],
+  docId: string
+): { paragraphs: Paragraph[]; insertAt: number; count: number } {
+  const added: Paragraph[] = texts
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((text, i) => ({ id: `${docId}-ocr${page}-${i}`, text, page, origin: 'ocr' as const }))
+
+  let insertAt = paragraphs.findIndex((p) => (p.page ?? 0) > page)
+  if (insertAt < 0) insertAt = paragraphs.length
+
+  return {
+    paragraphs: [...paragraphs.slice(0, insertAt), ...added, ...paragraphs.slice(insertAt)],
+    insertAt,
+    count: added.length
+  }
 }
 
 /**
@@ -46,6 +76,24 @@ function fnv1a(input: string): string {
     h = Math.imul(h, 0x01000193)
   }
   return (h >>> 0).toString(16).padStart(8, '0')
+}
+
+/** `[3,4,5,9]` → `"3–5, 9"`. Para avisos de páginas. */
+export function formatPageRanges(nums: number[]): string {
+  const sorted = [...new Set(nums)].sort((a, b) => a - b)
+  if (sorted.length === 0) return ''
+  const parts: string[] = []
+  let start = sorted[0]
+  let prev = sorted[0]
+  for (let i = 1; i <= sorted.length; i++) {
+    if (sorted[i] === prev + 1) {
+      prev = sorted[i]
+      continue
+    }
+    parts.push(start === prev ? `${start}` : `${start}–${prev}`)
+    start = prev = sorted[i]
+  }
+  return parts.join(', ')
 }
 
 export function deriveTitle(paragraphs: string[]): string {

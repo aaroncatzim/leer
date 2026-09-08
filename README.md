@@ -9,13 +9,14 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
   [`docs/mockups.md`](docs/mockups.md) · lienzo:
   [`docs/Lector Audio - Mockups.html`](docs/Lector%20Audio%20-%20Mockups.html)
 
-> **Estado: paso 4 del brief.** Entrada por texto pegado, **URL**, **HTML** o
-> **PDF con capa de texto** (botón o arrastrar y soltar). El HTML pasa por
-> Readability; el PDF se extrae con `pdfjs-dist` y se normaliza (unir guiones de
-> corte, quitar encabezados/pies repetidos y numeración de página). Reproducción
-> con la voz del sistema (offline), resaltado por párrafo y por palabra. Layout:
-> dirección **1a** de los mockups. Falta: OCR de PDF escaneado, motores remotos
-> y modal de ajustes.
+> **Estado: paso 5 del brief.** Entrada por texto pegado, **URL**, **HTML** o
+> **PDF** (con capa de texto o escaneado). El HTML pasa por Readability; el PDF
+> se extrae con `pdfjs-dist` y se normaliza; las páginas sin texto pasan por
+> **OCR** (`tesseract.js` + `@napi-rs/canvas`, idioma `spa` empaquetado, sin
+> red) de forma progresiva, con barra, cancelable, y se puede ir escuchando lo
+> ya reconocido. Reproducción con la voz del sistema (offline), resaltado por
+> párrafo y por palabra. Layout: dirección **1a**. Falta: motores TTS remotos,
+> exportar MP3 y modal de ajustes.
 
 ## Stack
 
@@ -26,6 +27,7 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
 | UI           | React 19 + TypeScript 7           |
 | Estado UI    | Zustand 5                         |
 | Tests        | Vitest 5                          |
+| Extracción   | jsdom + @mozilla/readability · pdfjs-dist · tesseract.js + @napi-rs/canvas |
 | Empaquetado  | electron-builder 26 (NSIS / DMG)  |
 | Tipografía   | Atkinson Hyperlegible + Public Sans (subset latino local) |
 
@@ -77,6 +79,7 @@ src/
   main/        Proceso principal (Node): ventana, ciclo de vida, IPC, CSP.
     extract/html.ts  Descarga/lee HTML y lo pasa por jsdom + Readability.
     extract/pdf.ts   Extrae texto de PDF con pdfjs-dist (sin OCR).
+    ocr/pdfOcr.ts    Rasteriza (canvas) + OCR (tesseract.js) de páginas escaneadas.
   preload/     Puente contextBridge -> window.api (única superficie IPC).
   renderer/    App React (Chromium, sin Node).
     src/lib/tts.ts    SystemTtsProvider (window.speechSynthesis).
@@ -123,7 +126,10 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
 4. ✅ Extractor PDF sin OCR: `pdfjs-dist` en el main (canal `extract:pdf`),
    página a página, + normalizador ([`src/shared/normalize.ts`](src/shared/normalize.ts),
    una regla = un test). Marca las páginas sin capa de texto para el OCR.
-5. ⬜ OCR como fallback para esas páginas (`tesseract.js` en worker, progreso por IPC).
+5. ✅ OCR de esas páginas ([`src/main/ocr/pdfOcr.ts`](src/main/ocr/pdfOcr.ts)):
+   rasteriza con `@napi-rs/canvas` a ~200 DPI y reconoce con `tesseract.js`
+   (`spa` en [`resources/tessdata`](resources/tessdata), sin red). Progreso por
+   `ocr:progress`/`ocr:page`, cancelable, y termina los workers al cerrar.
 6. ⬜ Proveedor TTS remoto (uno) + caché de audio + secretos.
 7. ⬜ Segundo proveedor remoto + exportar MP3.
 8. ⬜ Empaquetado y firma (notarización macOS, SmartScreen Windows).

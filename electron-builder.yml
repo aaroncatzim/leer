@@ -12,6 +12,11 @@ files:
   - out/**/*
   - package.json
 
+# Datos de OCR (idiomas de tesseract). En ejecución: process.resourcesPath.
+extraResources:
+  - from: resources
+    to: resources
+
 # Windows: instalador NSIS.
 win:
   target:
