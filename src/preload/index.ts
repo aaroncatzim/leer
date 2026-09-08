@@ -29,6 +29,7 @@ const api: RendererApi = {
   setSecret: (provider, key) => invoke(IpcChannel.SetSecret, provider, key),
   clearSecret: (provider) => invoke(IpcChannel.ClearSecret, provider),
   clearAudioCache: () => invoke(IpcChannel.ClearCache),
+  exportMp3: (req) => invoke(IpcChannel.TtsExport, req),
   pickDocument: () => invoke(IpcChannel.PickDocument),
   on: <E extends IpcEvent>(event: E, listener: (payload: IpcEventPayload[E]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload[E]): void =>

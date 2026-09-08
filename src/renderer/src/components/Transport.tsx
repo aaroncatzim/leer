@@ -21,6 +21,8 @@ export function Transport() {
   const setRate = usePlayer((s) => s.setRate)
   const setVoice = usePlayer((s) => s.setVoice)
   const setEngine = usePlayer((s) => s.setEngine)
+  const exportMp3 = usePlayer((s) => s.exportMp3)
+  const exporting = usePlayer((s) => s.exporting)
 
   const total = doc?.paragraphs.length ?? 0
   const has = total > 0
@@ -94,9 +96,7 @@ export function Transport() {
           <select value={engine} onChange={(e) => void setEngine(e.target.value as EngineId)}>
             <option value="system">{ENGINE_LABELS.system}</option>
             <option value="elevenlabs">{ENGINE_LABELS.elevenlabs}</option>
-            <option value="openai" disabled>
-              {ENGINE_LABELS.openai} — paso 7
-            </option>
+            <option value="openai">{ENGINE_LABELS.openai}</option>
           </select>
         </label>
 
@@ -127,6 +127,19 @@ export function Transport() {
             onChange={(e) => setRate(parseFloat(e.target.value))}
           />
         </label>
+
+        {(engine === 'elevenlabs' || engine === 'openai') && (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ height: 34, alignSelf: 'flex-end' }}
+            onClick={() => void exportMp3()}
+            disabled={!has || exporting !== null}
+            title="Sintetiza y guarda todo el documento como un MP3"
+          >
+            {exporting ? `Exportando ${exporting.done}/${exporting.total}` : 'Exportar MP3'}
+          </button>
+        )}
       </div>
     </div>
   )

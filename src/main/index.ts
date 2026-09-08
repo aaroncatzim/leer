@@ -10,6 +10,7 @@ import {
   type PdfSource,
   type PingResult,
   type Platform,
+  type ExportMp3Request,
   type RemoteProvider,
   type SettingsPatch,
   type SettingsView,
@@ -28,6 +29,7 @@ import {
   setSecret,
   writeSettings
 } from './settings'
+import { exportMp3 } from './tts/exportMp3'
 import { listRemoteVoices, synthesize } from './tts/remote'
 
 const isDev = !app.isPackaged
@@ -205,6 +207,14 @@ function registerIpcHandlers(): void {
   )
   ipcMain.handle(IpcChannel.ClearSecret, (_e, provider: RemoteProvider) => clearSecret(provider))
   ipcMain.handle(IpcChannel.ClearCache, () => clearCache())
+
+  ipcMain.handle(IpcChannel.TtsExport, (event, req: ExportMp3Request) =>
+    exportMp3(req, event.sender, (done, total) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send(IpcEvent.ExportProgress, { done, total })
+      }
+    })
+  )
 
   ipcMain.handle(IpcChannel.PickDocument, async (event): Promise<string | null> => {
     const owner = BrowserWindow.fromWebContents(event.sender)

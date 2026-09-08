@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { SettingsView } from '@shared/ipc'
+import type { RemoteProvider, SettingsView } from '@shared/ipc'
 import { usePlayer } from '../store'
 
 function formatBytes(n: number): string {
@@ -11,7 +11,7 @@ function formatBytes(n: number): string {
 export function Settings() {
   const closeSettings = usePlayer((s) => s.closeSettings)
   const [view, setView] = useState<SettingsView | null>(null)
-  const [elevenKey, setElevenKey] = useState('')
+  const [draftKey, setDraftKey] = useState<Record<RemoteProvider, string>>({ elevenlabs: '', openai: '' })
   const [chunkChars, setChunkChars] = useState('3000')
   const [saving, setSaving] = useState('')
 
@@ -30,19 +30,19 @@ export function Settings() {
     return () => window.removeEventListener('keydown', onKey)
   }, [closeSettings])
 
-  async function saveKey(): Promise<void> {
-    setSaving('elevenlabs')
+  async function saveKey(provider: RemoteProvider): Promise<void> {
+    setSaving(provider)
     try {
-      await window.api.setSecret('elevenlabs', elevenKey)
-      setElevenKey('')
+      await window.api.setSecret(provider, draftKey[provider])
+      setDraftKey((d) => ({ ...d, [provider]: '' }))
       await refresh()
     } finally {
       setSaving('')
     }
   }
 
-  async function clearKey(): Promise<void> {
-    await window.api.clearSecret('elevenlabs')
+  async function clearKey(provider: RemoteProvider): Promise<void> {
+    await window.api.clearSecret(provider)
     await refresh()
   }
 
@@ -77,41 +77,42 @@ export function Settings() {
             </p>
           )}
 
-          <label className="modal__field">
-            API key ElevenLabs
-            <div className="modal__row">
-              <input
-                type="password"
-                placeholder={view?.keys.elevenlabs.hint ?? 'Sin configurar'}
-                value={elevenKey}
-                onChange={(e) => setElevenKey(e.target.value)}
-                disabled={!view?.encryptionAvailable}
-              />
-              <button
-                type="button"
-                className="btn"
-                onClick={saveKey}
-                disabled={!elevenKey.trim() || saving === 'elevenlabs'}
-              >
-                Guardar
-              </button>
-              {view?.keys.elevenlabs.configured && (
-                <button type="button" className="btn btn--ghost" onClick={clearKey}>
-                  Quitar
+          {(['elevenlabs', 'openai'] as RemoteProvider[]).map((provider) => (
+            <label className="modal__field" key={provider}>
+              API key {provider === 'elevenlabs' ? 'ElevenLabs' : 'OpenAI'}
+              <div className="modal__row">
+                <input
+                  type="password"
+                  placeholder={view?.keys[provider].hint ?? 'Sin configurar'}
+                  value={draftKey[provider]}
+                  onChange={(e) => setDraftKey((d) => ({ ...d, [provider]: e.target.value }))}
+                  disabled={!view?.encryptionAvailable}
+                />
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void saveKey(provider)}
+                  disabled={!draftKey[provider].trim() || saving === provider}
+                >
+                  Guardar
                 </button>
+                {view?.keys[provider].configured && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => void clearKey(provider)}
+                  >
+                    Quitar
+                  </button>
+                )}
+              </div>
+              {provider === 'elevenlabs' && (
+                <span className="modal__hint">
+                  Cifrada en disco con <code>safeStorage</code>. Nunca sale del proceso principal.
+                </span>
               )}
-            </div>
-            <span className="modal__hint">
-              Cifrada en disco con <code>safeStorage</code>. Nunca sale del proceso principal.
-            </span>
-          </label>
-
-          <label className="modal__field">
-            API key OpenAI
-            <div className="modal__row">
-              <input type="password" placeholder="Llega en el paso 7" disabled />
-            </div>
-          </label>
+            </label>
+          ))}
 
           <div className="modal__grid">
             <label className="modal__field">

@@ -9,13 +9,13 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
   [`docs/mockups.md`](docs/mockups.md) · lienzo:
   [`docs/Lector Audio - Mockups.html`](docs/Lector%20Audio%20-%20Mockups.html)
 
-> **Estado: paso 6 del brief.** Entrada por texto pegado, **URL**, **HTML** o
-> **PDF** (con capa de texto o escaneado → OCR progresivo). Dos motores de voz:
-> **Sistema** (offline) y **ElevenLabs** (la key se guarda cifrada con
-> `safeStorage`, nunca llega al renderer; audio en caché en `userData`, contador
-> de caracteres). Modal de **Ajustes** (keys, idioma OCR, tamaño de chunk,
-> caché). Resaltado por párrafo (y por palabra en el motor local). Layout: **1a**.
-> Falta: OpenAI TTS y exportar MP3.
+> **Estado: paso 7 del brief.** Entrada por texto pegado, **URL**, **HTML** o
+> **PDF** (con capa de texto o escaneado → OCR progresivo). Tres motores de voz:
+> **Sistema** (offline), **ElevenLabs** y **OpenAI** (las keys se guardan
+> cifradas con `safeStorage`, nunca llegan al renderer; audio en caché en
+> `userData`, contador de caracteres). **Exportar MP3** del documento completo
+> con el motor remoto. Modal de **Ajustes**. Resaltado por párrafo (y por
+> palabra en el motor local). Layout: **1a**. Falta solo: empaquetado y firma.
 
 ## Stack
 
@@ -138,5 +138,7 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
    cifra las keys con `safeStorage`. Modal en
    [`src/renderer/src/components/Settings.tsx`](src/renderer/src/components/Settings.tsx).
    Segmentador §5.4 en [`src/shared/segment.ts`](src/shared/segment.ts) (con tests).
-7. ⬜ Segundo proveedor remoto (OpenAI TTS) + exportar MP3.
+7. ✅ Segundo motor remoto (OpenAI, `POST /v1/audio/speech`, `gpt-4o-mini-tts` —
+   verificado) + **Exportar MP3** ([`src/main/tts/exportMp3.ts`](src/main/tts/exportMp3.ts)):
+   sintetiza cada párrafo (reusando caché), concatena y guarda con diálogo nativo.
 8. ⬜ Empaquetado y firma (notarización macOS, SmartScreen Windows).

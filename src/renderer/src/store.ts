@@ -19,10 +19,13 @@ export type EngineId = 'system' | 'elevenlabs' | 'openai'
 export type Status = 'idle' | 'playing' | 'paused'
 
 const systemProvider = new SystemTtsProvider()
-const remoteProvider = new RemoteTtsProvider()
+const remoteProviders = {
+  elevenlabs: new RemoteTtsProvider('elevenlabs'),
+  openai: new RemoteTtsProvider('openai')
+}
 
 function providerFor(engine: EngineId): TtsProvider {
-  if (engine === 'elevenlabs') return remoteProvider
+  if (engine === 'elevenlabs' || engine === 'openai') return remoteProviders[engine]
   return systemProvider
 }
 
@@ -57,10 +60,13 @@ interface PlayerState {
   ocrLang: OcrLang
   /** Modal de ajustes abierto. */
   settingsOpen: boolean
+  /** Exportación de MP3 en curso, o `null`. */
+  exporting: { done: number; total: number } | null
 
   initVoices: () => Promise<void>
   syncSettings: () => Promise<void>
   setEngine: (engine: EngineId) => Promise<void>
+  exportMp3: () => Promise<void>
   loadText: (raw: string) => void
   loadHtml: (source: HtmlSource) => Promise<void>
   loadPdf: (source: PdfSource) => Promise<void>
@@ -83,7 +89,8 @@ let generation = 0
 export const usePlayer = create<PlayerState>((set, get) => {
   function stopAll(): void {
     systemProvider.stop()
-    remoteProvider.stop()
+    remoteProviders.elevenlabs.stop()
+    remoteProviders.openai.stop()
   }
 
   async function runFrom(startIndex: number): Promise<void> {
@@ -119,7 +126,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
   systemProvider.onBoundary((charIndex) => {
     if (get().status === 'playing' && get().engine === 'system') set({ wordStart: charIndex })
   })
-  remoteProvider.onChars((chars) => set((s) => ({ apiChars: s.apiChars + chars })))
+  const bumpChars = (chars: number): void => set((s) => ({ apiChars: s.apiChars + chars }))
+  remoteProviders.elevenlabs.onChars(bumpChars)
+  remoteProviders.openai.onChars(bumpChars)
+
+  window.api.on('tts:export-progress', ({ done, total }) => set({ exporting: { done, total } }))
 
   function stopOcr(): void {
     const { ocr } = get()
@@ -216,6 +227,30 @@ export const usePlayer = create<PlayerState>((set, get) => {
     lastPdfSource: null,
     ocrLang: 'spa',
     settingsOpen: false,
+    exporting: null,
+
+    async exportMp3() {
+      const { doc, engine, voiceId, rate, exporting } = get()
+      if (exporting || !doc || doc.paragraphs.length === 0) return
+      if ((engine !== 'elevenlabs' && engine !== 'openai') || !voiceId) {
+        set({ loadError: 'Cambia a un motor remoto (ElevenLabs u OpenAI) para exportar MP3.' })
+        return
+      }
+      set({ exporting: { done: 0, total: doc.paragraphs.length } })
+      try {
+        const res = await window.api.exportMp3({
+          paragraphs: doc.paragraphs.map((p) => p.text),
+          provider: engine,
+          voiceId,
+          speed: rate
+        })
+        if (res.canceled) set({ loadError: null })
+      } catch (err) {
+        set({ loadError: err instanceof Error ? err.message : String(err) })
+      } finally {
+        set({ exporting: null })
+      }
+    },
 
     async syncSettings() {
       try {
@@ -246,10 +281,6 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     async setEngine(engine) {
       if (engine === get().engine) return
-      if (engine === 'openai') {
-        set({ loadError: 'OpenAI TTS llega en el paso 7.' })
-        return
-      }
       const wasPlaying = get().status === 'playing'
       generation++
       stopAll()

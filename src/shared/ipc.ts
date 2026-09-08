@@ -28,7 +28,8 @@ export const IpcChannel = {
   SettingsSet: 'settings:set',
   SetSecret: 'settings:set-key',
   ClearSecret: 'settings:clear-key',
-  ClearCache: 'settings:clear-cache'
+  ClearCache: 'settings:clear-cache',
+  TtsExport: 'tts:export'
 } as const
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel]
 
@@ -53,6 +54,19 @@ export interface SynthesizeResponse {
   cached: boolean
   /** Caracteres facturados a la API en esta llamada (0 si venía de caché). */
   chars: number
+}
+
+export interface ExportMp3Request {
+  paragraphs: string[]
+  provider: RemoteProvider
+  voiceId: string
+  speed: number
+}
+
+export interface ExportMp3Result {
+  canceled: boolean
+  path?: string
+  chars?: number
 }
 
 export interface SettingsView {
@@ -93,7 +107,8 @@ export const IpcEvent = {
   OpenSettings: 'ui:open-settings',
   OcrProgress: 'ocr:progress',
   OcrPage: 'ocr:page',
-  OcrDone: 'ocr:done'
+  OcrDone: 'ocr:done',
+  ExportProgress: 'tts:export-progress'
 } as const
 export type IpcEvent = (typeof IpcEvent)[keyof typeof IpcEvent]
 
@@ -116,6 +131,7 @@ export interface IpcEventPayload {
   [IpcEvent.OcrProgress]: { ocrId: string; page: number; total: number; done: number }
   [IpcEvent.OcrPage]: { ocrId: string; page: number; paragraphs: string[] }
   [IpcEvent.OcrDone]: { ocrId: string; error?: string }
+  [IpcEvent.ExportProgress]: { done: number; total: number }
 }
 
 /** Superficie que el preload expone en `window.api`. */
@@ -156,6 +172,12 @@ export interface RendererApi {
   clearSecret(provider: RemoteProvider): Promise<void>
   /** Vacía la caché de audio remoto. */
   clearAudioCache(): Promise<void>
+  /**
+   * Sintetiza todos los párrafos con el motor remoto y guarda un MP3 unido
+   * (brief §5.7). Pide la ruta con un diálogo nativo. Progreso por
+   * `tts:export-progress`.
+   */
+  exportMp3(req: ExportMp3Request): Promise<ExportMp3Result>
   /** Diálogo nativo para elegir un PDF o HTML. `null` si se cancela. */
   pickDocument(): Promise<string | null>
   /**

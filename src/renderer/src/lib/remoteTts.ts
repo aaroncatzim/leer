@@ -1,30 +1,35 @@
+import type { RemoteProvider } from '@shared/ipc'
 import type { SpeakOptions, TtsProvider, Voice } from './tts'
 
 /**
- * Motor TTS remoto (ElevenLabs). El renderer nunca ve la API key ni sale a la
- * red: pide `window.api.synthesize`, el main resuelve caché/API y devuelve los
- * bytes mp3, que se reproducen con `<audio>` sobre un blob URL (`media-src
- * blob:` en la CSP). Resaltado solo por párrafo (brief §2).
+ * Motor TTS remoto (ElevenLabs u OpenAI). El renderer nunca ve la API key ni
+ * sale a la red: pide `window.api.synthesize`, el main resuelve caché/API y
+ * devuelve los bytes mp3, que se reproducen con `<audio>` sobre un blob URL
+ * (`media-src blob:` en la CSP). Resaltado solo por párrafo (brief §2).
  */
 export class RemoteTtsProvider implements TtsProvider {
-  readonly id = 'elevenlabs' as const
+  readonly id: RemoteProvider
   readonly canExport = true
 
   private audio: HTMLAudioElement | null = null
   private url: string | null = null
   private charsCbs = new Set<(chars: number) => void>()
 
+  constructor(provider: RemoteProvider) {
+    this.id = provider
+  }
+
   async listVoices(): Promise<Voice[]> {
-    const voices = await window.api.listRemoteVoices('elevenlabs')
+    const voices = await window.api.listRemoteVoices(this.id)
     return voices.map((v) => ({ id: v.id, label: v.label, lang: v.lang, local: false }))
   }
 
   async speak(text: string, opts: SpeakOptions): Promise<void> {
     this.stop()
-    if (!opts.voiceId) throw new Error('Elige una voz de ElevenLabs.')
+    if (!opts.voiceId) throw new Error('Elige una voz.')
 
     const { bytes, chars } = await window.api.synthesize({
-      provider: 'elevenlabs',
+      provider: this.id,
       voiceId: opts.voiceId,
       text,
       speed: opts.rate
@@ -52,7 +57,7 @@ export class RemoteTtsProvider implements TtsProvider {
   prefetch(text: string, opts: SpeakOptions): void {
     if (!opts.voiceId) return
     void window.api
-      .synthesize({ provider: 'elevenlabs', voiceId: opts.voiceId, text, speed: opts.rate })
+      .synthesize({ provider: this.id, voiceId: opts.voiceId, text, speed: opts.rate })
       .catch(() => undefined)
   }
 
