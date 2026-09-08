@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTextDocument, splitParagraphs } from './document'
+import { buildDocument, buildTextDocument, splitParagraphs } from './document'
 
 describe('splitParagraphs', () => {
   it('divide por líneas en blanco dobles', () => {
@@ -51,5 +51,26 @@ describe('buildTextDocument', () => {
       'La fotosíntesis es el proceso por el que las plantas transforman la luz en energía.'
     )
     expect(doc.title).toBe('La fotosíntesis es el proceso por el que las…')
+  })
+})
+
+describe('buildDocument', () => {
+  it('limpia párrafos vacíos, respeta título y avisos', () => {
+    const doc = buildDocument({
+      source: 'html',
+      title: '  Un artículo  ',
+      paragraphs: ['  Primero.  ', '', '   ', 'Segundo.'],
+      warnings: ['Readability falló.']
+    })
+    expect(doc.source).toBe('html')
+    expect(doc.title).toBe('Un artículo')
+    expect(doc.paragraphs.map((p) => p.text)).toEqual(['Primero.', 'Segundo.'])
+    expect(doc.warnings).toEqual(['Readability falló.'])
+  })
+
+  it('deriva título cuando no se pasa uno', () => {
+    expect(buildDocument({ source: 'html', paragraphs: ['Titular corto.'] }).title).toBe(
+      'Titular corto.'
+    )
   })
 })

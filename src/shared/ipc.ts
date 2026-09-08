@@ -8,15 +8,30 @@
  *     implementa con `ipcMain.handle` en el main.
  */
 
+import type { LectorDocument } from './document'
+
 /** Plataformas soportadas. Linux queda fuera de alcance en v1 (brief §2). */
 export type Platform = 'darwin' | 'win32' | 'linux'
 
 /** Canales petición-respuesta (`ipcRenderer.invoke` / `ipcMain.handle`). */
 export const IpcChannel = {
   AppGetInfo: 'app:get-info',
-  AppPing: 'app:ping'
+  AppPing: 'app:ping',
+  ExtractHtml: 'extract:html',
+  PickHtmlFile: 'dialog:pick-html'
 } as const
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel]
+
+/**
+ * Origen de un extracto HTML (brief §5.2):
+ *  - `url`  : el main descarga (nunca el renderer).
+ *  - `file` : el main lee la ruta (elegida con el diálogo nativo).
+ *  - `html` : HTML ya en memoria (archivo soltado y leído en el renderer).
+ */
+export type HtmlSource =
+  | { kind: 'url'; url: string }
+  | { kind: 'file'; path: string }
+  | { kind: 'html'; html: string; label?: string }
 
 /** Eventos que el main empuja al renderer (`webContents.send`). */
 export const IpcEvent = {
@@ -46,6 +61,14 @@ export interface IpcEventPayload {
 export interface RendererApi {
   getAppInfo(): Promise<AppInfo>
   ping(message: string): Promise<PingResult>
+  /**
+   * Descarga (URL) o lee (archivo) un HTML en el proceso principal, lo pasa por
+   * Readability y devuelve el documento. Rechaza con un mensaje legible si
+   * falla la descarga o el recurso no es HTML.
+   */
+  extractHtml(source: HtmlSource): Promise<LectorDocument>
+  /** Diálogo nativo para elegir un archivo HTML. `null` si se cancela. */
+  pickHtmlFile(): Promise<string | null>
   /**
    * Suscribe a un evento main -> renderer.
    * @returns función para cancelar la suscripción.

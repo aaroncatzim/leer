@@ -136,6 +136,63 @@ button {
   outline-offset: 1px;
 }
 
+.input__url {
+  display: flex;
+  gap: 6px;
+}
+
+.input__field {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid rgba(28, 26, 23, 0.16);
+  border-radius: 8px;
+  padding: 0 10px;
+  font: 400 13px var(--font-ui);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.input__field:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.input__url .btn {
+  height: 36px;
+  padding: 0 14px;
+}
+
+.input__drop {
+  border: 1.5px dashed rgba(28, 26, 23, 0.22);
+  border-radius: 10px;
+  padding: 18px 14px;
+  text-align: center;
+  font: 400 12px/1.5 var(--font-ui);
+  color: var(--muted-2);
+  background: rgba(28, 26, 23, 0.02);
+}
+
+.input__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #fbe4e0;
+  color: #7a2b20;
+  font: 400 12px/1.4 var(--font-ui);
+}
+
+.input__error button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: #a8543f;
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+
 .input__stats {
   margin-top: auto;
   border-top: 1px solid var(--line-soft);
@@ -461,4 +518,41 @@ button {
 .field input[type='range'] {
   width: 104px;
   accent-color: var(--accent);
+}
+
+/* ── Overlays ─────────────────────────────────────────────────────── */
+
+.dropzone {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 92, 88, 0.14);
+  backdrop-filter: blur(1px);
+}
+
+.dropzone__box {
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  padding: 28px 40px;
+  background: var(--surface);
+  color: var(--accent);
+  font: 600 15px var(--font-ui);
+  box-shadow: 0 12px 40px rgba(28, 26, 23, 0.2);
+}
+
+.toast {
+  position: fixed;
+  bottom: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: var(--ink);
+  color: #fff;
+  font: 600 12px var(--font-ui);
+  padding: 8px 14px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }

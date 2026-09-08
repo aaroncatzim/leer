@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react'
+import type { DocumentSource } from '@shared/document'
 import { usePlayer } from '../store'
+
+const SOURCE_LABEL: Record<DocumentSource, string> = {
+  text: 'Texto pegado',
+  html: 'HTML',
+  pdf: 'PDF'
+}
 
 /** Parte un texto en [antes, palabra, después] alrededor de un offset. */
 function splitAtWord(text: string, charIndex: number): [string, string, string] {
@@ -54,7 +61,7 @@ export function Reader() {
       <div className="reader__head">
         <h1 className="reader__title">{doc.title}</h1>
         <span className="reader__meta">
-          Texto pegado · {doc.paragraphs.length}{' '}
+          {SOURCE_LABEL[doc.source]} · {doc.paragraphs.length}{' '}
           {doc.paragraphs.length === 1 ? 'párrafo' : 'párrafos'}
         </span>
       </div>

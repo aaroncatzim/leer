@@ -4,6 +4,8 @@ import { IpcChannel, type IpcEvent, type IpcEventPayload, type RendererApi } fro
 const api: RendererApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.AppGetInfo),
   ping: (message) => ipcRenderer.invoke(IpcChannel.AppPing, message),
+  extractHtml: (source) => ipcRenderer.invoke(IpcChannel.ExtractHtml, source),
+  pickHtmlFile: () => ipcRenderer.invoke(IpcChannel.PickHtmlFile),
   on: <E extends IpcEvent>(event: E, listener: (payload: IpcEventPayload[E]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload[E]): void =>
       listener(payload)

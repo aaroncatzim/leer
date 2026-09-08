@@ -1,12 +1,14 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain, Menu, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
 import {
   IpcChannel,
   IpcEvent,
   type AppInfo,
+  type HtmlSource,
   type PingResult,
   type Platform
 } from '../shared/ipc'
+import { extractHtml } from './extract/html'
 
 const isDev = !app.isPackaged
 const APP_USER_MODEL_ID = 'com.aaroncatzim.lectoraudio'
@@ -102,6 +104,22 @@ function registerIpcHandlers(): void {
       at: Date.now()
     })
   )
+
+  // El rechazo se propaga al `invoke` del renderer como promesa rechazada.
+  ipcMain.handle(IpcChannel.ExtractHtml, (_event, source: HtmlSource) => extractHtml(source))
+
+  ipcMain.handle(IpcChannel.PickHtmlFile, async (event): Promise<string | null> => {
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Abrir HTML',
+      properties: ['openFile'],
+      filters: [{ name: 'HTML', extensions: ['html', 'htm', 'xhtml'] }]
+    }
+    const result = owner
+      ? await dialog.showOpenDialog(owner, options)
+      : await dialog.showOpenDialog(options)
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  })
 }
 
 function buildMenu(): void {

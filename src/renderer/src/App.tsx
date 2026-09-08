@@ -4,11 +4,15 @@ import { Reader } from './components/Reader'
 import { Transport } from './components/Transport'
 import { usePlayer } from './store'
 
+const HTML_FILE = /\.(xhtml|html?|htm)$/i
+
 export function App() {
   const initVoices = usePlayer((s) => s.initVoices)
   const toggle = usePlayer((s) => s.toggle)
+  const loadHtml = usePlayer((s) => s.loadHtml)
   const docTitle = usePlayer((s) => s.doc?.title ?? 'Lector Audio')
   const [toast, setToast] = useState('')
+  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     void initVoices()
@@ -34,8 +38,31 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [toggle])
 
+  async function onDrop(e: React.DragEvent<HTMLDivElement>): Promise<void> {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    if (!HTML_FILE.test(file.name)) {
+      setToast('Suelta un archivo HTML (.html)')
+      window.setTimeout(() => setToast(''), 2600)
+      return
+    }
+    void loadHtml({ kind: 'html', html: await file.text(), label: file.name })
+  }
+
   return (
-    <div className="app">
+    <div
+      className="app"
+      onDragOver={(e) => {
+        e.preventDefault()
+        setDragging(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false)
+      }}
+      onDrop={onDrop}
+    >
       <header className="titlebar">
         <div className="titlebar__lights">
           <span />
@@ -53,22 +80,14 @@ export function App() {
 
       <Transport />
 
+      {dragging && (
+        <div className="dropzone">
+          <div className="dropzone__box">Suelta un archivo HTML para leerlo</div>
+        </div>
+      )}
+
       {toast && (
-        <div
-          role="status"
-          style={{
-            position: 'fixed',
-            bottom: 92,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'var(--ink)',
-            color: '#fff',
-            font: '600 12px var(--font-ui)',
-            padding: '8px 14px',
-            borderRadius: 8,
-            boxShadow: '0 4px 14px rgba(0,0,0,.25)'
-          }}
-        >
+        <div className="toast" role="status">
           {toast}
         </div>
       )}

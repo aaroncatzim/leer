@@ -9,10 +9,12 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
   [`docs/mockups.md`](docs/mockups.md) · lienzo:
   [`docs/Lector Audio - Mockups.html`](docs/Lector%20Audio%20-%20Mockups.html)
 
-> **Estado: paso 2 del brief** — primer hito usable. Se pega texto, se divide en
-> párrafos y se escucha con la voz del sistema (offline), con resaltado del
-> párrafo y de la palabra en curso. Layout: dirección **1a** de los mockups.
-> Todavía sin extractores PDF/HTML, sin motores remotos y sin modal de ajustes.
+> **Estado: paso 3 del brief.** Entrada por texto pegado, **URL** o **archivo
+> HTML** (botón o arrastrar y soltar); el HTML se descarga/lee en el proceso
+> principal y pasa por Readability, con aviso si no se pudo aislar el artículo.
+> Reproducción con la voz del sistema (offline), resaltado por párrafo y por
+> palabra. Layout: dirección **1a** de los mockups. Falta: PDF/OCR, motores
+> remotos y modal de ajustes.
 
 ## Stack
 
@@ -72,13 +74,14 @@ Notas de instalación:
 ```
 src/
   main/        Proceso principal (Node): ventana, ciclo de vida, IPC, CSP.
+    extract/html.ts  Descarga/lee HTML y lo pasa por jsdom + Readability.
   preload/     Puente contextBridge -> window.api (única superficie IPC).
   renderer/    App React (Chromium, sin Node).
-    src/lib/         document.ts (modelo + segmentador), tts.ts (SystemTtsProvider).
-    src/store.ts     Estado del reproductor (Zustand) + bucle de reproducción.
-    src/components/   InputPanel · Reader · Transport.
-    src/assets/fonts/ Subset latino de las fuentes, sin red.
-  shared/      Contrato IPC tipado, compartido por main y renderer.
+    src/lib/tts.ts    SystemTtsProvider (window.speechSynthesis).
+    src/store.ts      Estado del reproductor (Zustand) + bucle de reproducción.
+    src/components/    InputPanel · Reader · Transport.
+    src/assets/fonts/  Subset latino de las fuentes, sin red.
+  shared/      Contrato IPC tipado + modelo `document`, compartido main ↔ renderer.
 scripts/
   dev.mjs      Lanza electron-vite sin ELECTRON_RUN_AS_NODE (ver arriba).
 electron.vite.config.ts · electron-builder.yml · vitest.config.ts
@@ -93,7 +96,9 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 - El renderer no toca `ipcRenderer`: sólo usa `window.api`, tipado en
   [`src/shared/ipc.ts`](src/shared/ipc.ts). Cada operación de disco / red / OCR
-  se añadirá como un canal tipado con `ipcMain.handle`.
+  es un canal tipado con `ipcMain.handle`.
+- La descarga de URLs la hace el proceso principal (`fetch` con timeout, límite
+  de tamaño y comprobación de `content-type`); el renderer nunca sale a la red.
 - CSP aplicada por cabecera de respuesta (`onHeadersReceived`); estricta en
   producción (`default-src 'self'`, `connect-src 'self'`).
 - Navegación fuera de la app bloqueada; los enlaces externos abren en el
@@ -109,7 +114,9 @@ renderer/shared) para no mezclar los globals de Node y del DOM.
    Layout 1a de [`docs/mockups.md`](docs/mockups.md). Resaltado por párrafo y por
    palabra (`onboundary`). Tests del segmentador en
    [`src/renderer/src/lib/document.test.ts`](src/renderer/src/lib/document.test.ts).
-3. ⬜ Extractor HTML (`@mozilla/readability` en el main).
+3. ✅ Extractor HTML: URL / archivo / HTML soltado → `jsdom` + `@mozilla/readability`
+   en el main (canal `extract:html`), con fallback al cuerpo completo + aviso.
+   Tests en [`src/main/extract/html.test.ts`](src/main/extract/html.test.ts).
 4. ⬜ Extractor PDF sin OCR + normalizador con tests (Vitest).
 5. ⬜ OCR como fallback (`tesseract.js` en worker, progreso por IPC).
 6. ⬜ Proveedor TTS remoto (uno) + caché de audio + secretos.

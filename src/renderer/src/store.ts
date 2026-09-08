@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { buildTextDocument, type LectorDocument } from './lib/document'
+import { buildTextDocument, type LectorDocument } from '@shared/document'
+import type { HtmlSource } from '@shared/ipc'
 import { SystemTtsProvider, type Voice } from './lib/tts'
 
 /**
@@ -27,9 +28,15 @@ interface PlayerState {
   warningsOpen: boolean
   /** Contador de sesión para la futura factura de la API (brief §5.6). */
   apiChars: number
+  /** Extracción en curso (descarga / parseo de HTML). */
+  busy: boolean
+  /** Último error de carga (URL inválida, descarga fallida, etc.). */
+  loadError: string | null
 
   initVoices: () => Promise<void>
   loadText: (raw: string) => void
+  loadHtml: (source: HtmlSource) => Promise<void>
+  clearError: () => void
   toggle: () => void
   stop: () => void
   next: () => void
@@ -80,6 +87,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
     wordStart: -1,
     warningsOpen: true,
     apiChars: 0,
+    busy: false,
+    loadError: null,
 
     async initVoices() {
       const voices = await provider.listVoices()
@@ -101,8 +110,28 @@ export const usePlayer = create<PlayerState>((set, get) => {
         activeIndex: 0,
         status: 'idle',
         wordStart: -1,
-        warningsOpen: true
+        warningsOpen: true,
+        loadError: null
       })
+    },
+
+    async loadHtml(source) {
+      if (get().busy) return
+      generation++
+      provider.stop()
+      set({ busy: true, loadError: null })
+      try {
+        const doc = await window.api.extractHtml(source)
+        set({ doc, activeIndex: 0, status: 'idle', wordStart: -1, warningsOpen: true })
+      } catch (err) {
+        set({ loadError: err instanceof Error ? err.message : String(err) })
+      } finally {
+        set({ busy: false })
+      }
+    },
+
+    clearError() {
+      set({ loadError: null })
     },
 
     toggle() {

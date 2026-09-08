@@ -1,13 +1,28 @@
 import { useState } from 'react'
 import { usePlayer } from '../store'
 
+function normalizeUrl(raw: string): string {
+  const u = raw.trim()
+  return /^https?:\/\//i.test(u) ? u : `https://${u}`
+}
+
 export function InputPanel() {
   const [draft, setDraft] = useState('')
+  const [url, setUrl] = useState('')
   const loadText = usePlayer((s) => s.loadText)
+  const loadHtml = usePlayer((s) => s.loadHtml)
+  const clearError = usePlayer((s) => s.clearError)
+  const busy = usePlayer((s) => s.busy)
+  const loadError = usePlayer((s) => s.loadError)
   const apiChars = usePlayer((s) => s.apiChars)
 
-  function load(): void {
-    if (draft.trim()) loadText(draft)
+  async function openFile(): Promise<void> {
+    const path = await window.api.pickHtmlFile()
+    if (path) void loadHtml({ kind: 'file', path })
+  }
+
+  function readUrl(): void {
+    if (url.trim()) void loadHtml({ kind: 'url', url: normalizeUrl(url) })
   }
 
   return (
@@ -20,17 +35,50 @@ export function InputPanel() {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') load()
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && draft.trim()) loadText(draft)
         }}
       />
-
-      <button type="button" className="btn" onClick={load} disabled={!draft.trim()}>
+      <button type="button" className="btn" onClick={() => loadText(draft)} disabled={!draft.trim()}>
         Cargar texto
       </button>
 
-      <button type="button" className="btn btn--ghost" disabled title="Próximamente — paso 3 del brief">
-        Abrir PDF / HTML
+      <button
+        type="button"
+        className="btn btn--ghost"
+        onClick={openFile}
+        disabled={busy}
+        title="Abrir un archivo HTML (el PDF llega en el paso 4)"
+      >
+        Abrir HTML…
       </button>
+
+      <div className="input__url">
+        <input
+          className="input__field"
+          placeholder="https://…"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') readUrl()
+          }}
+        />
+        <button type="button" className="btn btn--ghost" onClick={readUrl} disabled={busy || !url.trim()}>
+          Leer
+        </button>
+      </div>
+
+      <div className="input__drop">
+        {busy ? 'Procesando…' : 'Arrastra un archivo HTML a cualquier parte de la ventana'}
+      </div>
+
+      {loadError && (
+        <div className="input__error">
+          <span>{loadError}</span>
+          <button type="button" onClick={clearError} aria-label="Descartar">
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="input__stats">
         <div className="input__stat">
@@ -41,7 +89,13 @@ export function InputPanel() {
           <span>Caché de audio</span>
           <b>0 MB</b>
         </div>
-        <button type="button" className="btn btn--ghost" style={{ height: 34 }} disabled title="Próximamente — paso 6 del brief">
+        <button
+          type="button"
+          className="btn btn--ghost"
+          style={{ height: 34 }}
+          disabled
+          title="Próximamente — paso 6 del brief"
+        >
           Ajustes…
         </button>
       </div>
