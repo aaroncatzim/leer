@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { REMOTE_TTS_ENABLED } from '@shared/features'
 import type { RemoteProvider, SettingsView } from '@shared/ipc'
 import { usePlayer } from '../store'
 
@@ -77,7 +78,8 @@ export function Settings() {
             </p>
           )}
 
-          {(['elevenlabs', 'openai'] as RemoteProvider[]).map((provider) => (
+          {REMOTE_TTS_ENABLED &&
+            (['elevenlabs', 'openai'] as RemoteProvider[]).map((provider) => (
             <label className="modal__field" key={provider}>
               API key {provider === 'elevenlabs' ? 'ElevenLabs' : 'OpenAI'}
               <div className="modal__row">
@@ -114,7 +116,7 @@ export function Settings() {
             </label>
           ))}
 
-          <div className="modal__grid">
+          <div className={REMOTE_TTS_ENABLED ? 'modal__grid' : undefined}>
             <label className="modal__field">
               Idioma OCR
               <select
@@ -126,28 +128,32 @@ export function Settings() {
               </select>
             </label>
 
-            <label className="modal__field">
-              Tamaño de chunk
-              <div className="modal__row">
-                <input
-                  value={chunkChars}
-                  inputMode="numeric"
-                  onChange={(e) => setChunkChars(e.target.value.replace(/\D/g, ''))}
-                  onBlur={saveChunk}
-                />
-              </div>
-            </label>
+            {REMOTE_TTS_ENABLED && (
+              <label className="modal__field">
+                Tamaño de chunk
+                <div className="modal__row">
+                  <input
+                    value={chunkChars}
+                    inputMode="numeric"
+                    onChange={(e) => setChunkChars(e.target.value.replace(/\D/g, ''))}
+                    onBlur={saveChunk}
+                  />
+                </div>
+              </label>
+            )}
           </div>
 
-          <div className="modal__cache">
-            <div>
-              <div className="modal__cache-title">Caché de audio</div>
-              <div className="modal__hint">{formatBytes(view?.cacheBytes ?? 0)} en disco</div>
+          {REMOTE_TTS_ENABLED && (
+            <div className="modal__cache">
+              <div>
+                <div className="modal__cache-title">Caché de audio</div>
+                <div className="modal__hint">{formatBytes(view?.cacheBytes ?? 0)} en disco</div>
+              </div>
+              <button type="button" className="btn btn--ghost" onClick={clearCache}>
+                Vaciar
+              </button>
             </div>
-            <button type="button" className="btn btn--ghost" onClick={clearCache}>
-              Vaciar
-            </button>
-          </div>
+          )}
         </div>
 
         <div className="modal__foot">

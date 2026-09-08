@@ -1,3 +1,4 @@
+import { REMOTE_TTS_ENABLED } from '@shared/features'
 import { usePlayer, type EngineId } from '../store'
 
 const ENGINE_LABELS: Record<EngineId, string> = {
@@ -91,14 +92,16 @@ export function Transport() {
       </div>
 
       <div className="transport__controls">
-        <label className="field">
-          Motor
-          <select value={engine} onChange={(e) => void setEngine(e.target.value as EngineId)}>
-            <option value="system">{ENGINE_LABELS.system}</option>
-            <option value="elevenlabs">{ENGINE_LABELS.elevenlabs}</option>
-            <option value="openai">{ENGINE_LABELS.openai}</option>
-          </select>
-        </label>
+        {REMOTE_TTS_ENABLED && (
+          <label className="field">
+            Motor
+            <select value={engine} onChange={(e) => void setEngine(e.target.value as EngineId)}>
+              <option value="system">{ENGINE_LABELS.system}</option>
+              <option value="elevenlabs">{ENGINE_LABELS.elevenlabs}</option>
+              <option value="openai">{ENGINE_LABELS.openai}</option>
+            </select>
+          </label>
+        )}
 
         <label className="field">
           Voz
@@ -128,7 +131,7 @@ export function Transport() {
           />
         </label>
 
-        {(engine === 'elevenlabs' || engine === 'openai') && (
+        {REMOTE_TTS_ENABLED && (engine === 'elevenlabs' || engine === 'openai') && (
           <button
             type="button"
             className="btn btn--ghost"

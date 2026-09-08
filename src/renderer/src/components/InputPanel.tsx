@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { REMOTE_TTS_ENABLED } from '@shared/features'
 import { usePlayer } from '../store'
 
 function normalizeUrl(raw: string): string {
@@ -85,14 +86,12 @@ export function InputPanel() {
       )}
 
       <div className="input__stats">
-        <div className="input__stat">
-          <span>Caracteres a la API</span>
-          <b>{apiChars.toLocaleString('es-ES')}</b>
-        </div>
-        <div className="input__stat">
-          <span>Caché de audio</span>
-          <b>0 MB</b>
-        </div>
+        {REMOTE_TTS_ENABLED && (
+          <div className="input__stat">
+            <span>Caracteres a la API</span>
+            <b>{apiChars.toLocaleString('es-ES')}</b>
+          </div>
+        )}
         <button type="button" className="btn btn--ghost" style={{ height: 34 }} onClick={openSettings}>
           Ajustes…
         </button>

@@ -11,12 +11,15 @@ pago seleccionables (ElevenLabs / OpenAI TTS).
 
 > **Estado: v1 completa (pasos 1–8 del brief).** Entrada por texto pegado,
 > **URL**, **HTML** o **PDF** (con capa de texto o escaneado → OCR progresivo).
-> Tres motores de voz: **Sistema** (offline), **ElevenLabs** y **OpenAI** (keys
-> cifradas con `safeStorage`, audio en caché, contador de caracteres).
-> **Exportar MP3**, modal de **Ajustes**, resaltado por párrafo (y por palabra
-> en el motor local). Layout: dirección **1a** de los mockups. Empaquetado con
-> electron-builder (DMG probado; NSIS listo, se genera en Windows). Firma y
-> notarización listas para activarse con las variables de entorno.
+> Voz con el **motor del sistema** (offline), resaltado por párrafo y por
+> palabra. Modal de **Ajustes** (idioma de OCR). Layout: dirección **1a** de los
+> mockups. Empaquetado con electron-builder (DMG probado; NSIS listo, se genera
+> en Windows).
+>
+> Los **motores remotos** (ElevenLabs / OpenAI) y **Exportar MP3** están
+> implementados y probados pero **ocultos** tras
+> [`REMOTE_TTS_ENABLED`](src/shared/features.ts) (`= false`). Ponerlo a `true`
+> devuelve a la UI el selector de motor, «Exportar MP3» y los campos de API key.
 
 ## Stack
 
